@@ -484,4 +484,193 @@ app.get('/api/events/:eventId/result/:userId', async (c) => {
   })
 })
 
+// ==================== AI機能 ====================
+
+// カテゴリ一覧取得
+app.get('/admin/api/categories', async (c) => {
+  const { DB } = c.env
+  
+  const categories = await DB.prepare(`
+    SELECT * FROM question_categories ORDER BY id
+  `).all()
+  
+  return c.json({ categories: categories.results })
+})
+
+// AI問題生成（ファイルアップロード対応）
+app.post('/admin/api/ai/generate-questions', async (c) => {
+  const { DB } = c.env
+  
+  try {
+    const body = await c.req.parseBody()
+    const fileContent = body['content'] as string // テキストコンテンツ
+    const category = body['category'] as string || '一般知識'
+    const count = parseInt(body['count'] as string || '10')
+    const eventId = body['event_id'] as string
+    
+    if (!fileContent) {
+      return c.json({ error: 'コンテンツが必要です' }, 400)
+    }
+    
+    // OpenAI APIキー確認（環境変数から）
+    const apiKey = c.env.OPENAI_API_KEY || ''
+    const baseURL = c.env.OPENAI_BASE_URL || 'https://www.genspark.ai/api/llm_proxy/v1'
+    
+    if (!apiKey) {
+      return c.json({ 
+        error: 'OpenAI APIキーが設定されていません。GenSparkのAPI Keysタブで設定してください。',
+        setup_required: true
+      }, 400)
+    }
+    
+    // プロンプト生成
+    const prompt = `あなたは企業向けクイズの問題作成エキスパートです。
+
+以下の社内資料から、${count}問の4択クイズを作成してください。
+
+【カテゴリ】: ${category}
+
+【社内資料】:
+${fileContent}
+
+【出力形式】:
+JSON形式で、以下の構造で出力してください：
+
+\`\`\`json
+{
+  "questions": [
+    {
+      "question_text": "問題文",
+      "option_a": "選択肢A",
+      "option_b": "選択肢B",
+      "option_c": "選択肢C",
+      "option_d": "選択肢D",
+      "correct_answer": "A",
+      "detailed_explanation": "この問題の背景や詳細な説明。200文字程度。"
+    }
+  ]
+}
+\`\`\`
+
+【重要な指示】:
+1. 問題は資料の内容に基づいた事実のみ
+2. 選択肢は明確に区別できるもの
+3. 正解は資料から明確に判断できるもの
+4. detailed_explanationには、問題の背景や覚えておくべきポイントを記載
+5. 必ずJSON形式のみを出力すること（\`\`\`json などのマークダウンは不要）
+
+それでは、${count}問を作成してください。`
+
+    // OpenAI API呼び出し（fetch使用）
+    const response = await fetch(`${baseURL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-5',
+        messages: [
+          { role: 'system', content: 'You are a helpful assistant that generates quiz questions.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.7
+      })
+    })
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('OpenAI API Error:', errorText)
+      return c.json({ error: 'AI問題生成に失敗しました', details: errorText }, 500)
+    }
+    
+    const aiResponse = await response.json() as any
+    const content = aiResponse.choices[0]?.message?.content || ''
+    
+    // JSONを抽出（マークダウンコードブロックを除去）
+    let jsonContent = content.trim()
+    if (jsonContent.startsWith('```json')) {
+      jsonContent = jsonContent.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+    } else if (jsonContent.startsWith('```')) {
+      jsonContent = jsonContent.replace(/```\n?/g, '').trim()
+    }
+    
+    const generatedData = JSON.parse(jsonContent)
+    
+    // カテゴリIDを取得
+    const categoryRecord = await DB.prepare(`
+      SELECT id FROM question_categories WHERE name = ?
+    `).bind(category).first()
+    
+    const categoryId = categoryRecord?.id || 6 // デフォルトは「その他」
+    
+    return c.json({
+      success: true,
+      questions: generatedData.questions.map((q: any) => ({
+        ...q,
+        category_id: categoryId,
+        source_material: '社内資料（アップロード）'
+      })),
+      count: generatedData.questions.length
+    })
+    
+  } catch (error: any) {
+    console.error('AI Generation Error:', error)
+    return c.json({ 
+      error: 'AI問題生成中にエラーが発生しました',
+      details: error.message 
+    }, 500)
+  }
+})
+
+// 生成された問題を一括登録
+app.post('/admin/api/questions/bulk-create', async (c) => {
+  const { DB } = c.env
+  const { event_id, questions } = await c.req.json()
+  
+  if (!event_id || !questions || !Array.isArray(questions)) {
+    return c.json({ error: '不正なリクエストです' }, 400)
+  }
+  
+  try {
+    const results = []
+    
+    for (const q of questions) {
+      // ランダムに問題群を割り当て（0-9）
+      const poolGroup = Math.floor(Math.random() * 10)
+      
+      const result = await DB.prepare(`
+        INSERT INTO questions (
+          event_id, question_text, option_a, option_b, option_c, option_d, 
+          correct_answer, pool_group, category_id, source_material, detailed_explanation
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        event_id, 
+        q.question_text, 
+        q.option_a, 
+        q.option_b, 
+        q.option_c, 
+        q.option_d,
+        q.correct_answer, 
+        poolGroup,
+        q.category_id || 6,
+        q.source_material || 'AI生成',
+        q.detailed_explanation || ''
+      ).run()
+      
+      results.push({ id: result.meta.last_row_id, pool_group: poolGroup })
+    }
+    
+    return c.json({ 
+      success: true, 
+      created: results.length,
+      questions: results
+    })
+  } catch (error: any) {
+    console.error('Bulk Create Error:', error)
+    return c.json({ error: '問題の登録に失敗しました', details: error.message }, 500)
+  }
+})
+
 export default app

@@ -292,6 +292,10 @@ async function manageQuestions(eventId) {
                             問題管理: ${selectedEvent.name}
                         </h1>
                         <div class="flex gap-2">
+                            <button onclick="showAIGenerateModal()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                                <i class="fas fa-magic mr-2"></i>
+                                AI問題生成
+                            </button>
                             <button onclick="showCreateQuestionModal()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
                                 <i class="fas fa-plus mr-2"></i>
                                 問題追加
@@ -474,6 +478,277 @@ async function viewParticipants(eventId) {
 
 function closeModal() {
     document.getElementById('modal')?.remove();
+}
+
+// AI問題生成モーダル
+function showAIGenerateModal() {
+    const modal = `
+        <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white p-8 rounded-xl max-w-3xl w-full max-h-screen overflow-y-auto">
+                <h2 class="text-2xl font-bold mb-6">
+                    <i class="fas fa-magic mr-2 text-purple-600"></i>
+                    AI問題生成
+                </h2>
+                
+                <div class="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
+                    <p class="text-sm text-purple-800">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        社内資料（PDF/テキスト）をアップロードすると、AIが自動的にクイズ問題を生成します。
+                    </p>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">
+                            <i class="fas fa-file-upload mr-1"></i>
+                            ファイルアップロード
+                        </label>
+                        <input 
+                            type="file" 
+                            id="aiGenerateFile" 
+                            accept=".pdf,.txt,.md"
+                            class="w-full px-3 py-2 border rounded"
+                        />
+                        <p class="text-xs text-gray-500 mt-1">対応形式: PDF, テキスト (.txt, .md)</p>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">
+                                <i class="fas fa-hashtag mr-1"></i>
+                                生成する問題数
+                            </label>
+                            <select id="aiGenerateCount" class="w-full px-3 py-2 border rounded">
+                                <option value="10">10問</option>
+                                <option value="20">20問</option>
+                                <option value="50">50問</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium mb-2">
+                                <i class="fas fa-tag mr-1"></i>
+                                カテゴリ
+                            </label>
+                            <select id="aiGenerateCategory" class="w-full px-3 py-2 border rounded">
+                                <option value="company_history">社史</option>
+                                <option value="knowledge">ナレッジ</option>
+                                <option value="people">人物</option>
+                                <option value="product">製品知識</option>
+                                <option value="compliance">コンプライアンス</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium mb-2">
+                            <i class="fas fa-comment mr-1"></i>
+                            追加の指示（オプション）
+                        </label>
+                        <textarea 
+                            id="aiGeneratePrompt" 
+                            class="w-full px-3 py-2 border rounded" 
+                            rows="3"
+                            placeholder="例: 創業時のエピソードに焦点を当ててください"
+                        ></textarea>
+                    </div>
+                    
+                    <div id="aiGenerateProgress" class="hidden">
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <div class="flex items-center gap-3">
+                                <div class="animate-spin">
+                                    <i class="fas fa-spinner text-blue-600 text-xl"></i>
+                                </div>
+                                <div>
+                                    <p class="font-medium text-blue-800">AI問題生成中...</p>
+                                    <p class="text-sm text-blue-600" id="aiGenerateProgressText">ファイルを読み込んでいます</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="aiGeneratePreview" class="hidden">
+                        <h3 class="font-bold text-gray-800 mb-3">
+                            <i class="fas fa-eye mr-1"></i>
+                            生成された問題のプレビュー
+                        </h3>
+                        <div id="aiGeneratePreviewContent" class="space-y-3 max-h-96 overflow-y-auto"></div>
+                    </div>
+                    
+                    <div class="flex gap-2 mt-6">
+                        <button 
+                            id="aiGenerateButton"
+                            onclick="handleAIGenerate()" 
+                            class="flex-1 px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+                        >
+                            <i class="fas fa-magic mr-2"></i>
+                            AI生成開始
+                        </button>
+                        <button 
+                            id="aiApproveButton"
+                            onclick="handleAIApprove()" 
+                            class="flex-1 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 hidden"
+                        >
+                            <i class="fas fa-check mr-2"></i>
+                            問題を承認して登録
+                        </button>
+                        <button onclick="closeModal()" class="flex-1 px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">
+                            キャンセル
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('admin-app').insertAdjacentHTML('beforeend', modal);
+}
+
+let generatedQuestions = [];
+
+async function handleAIGenerate() {
+    const fileInput = document.getElementById('aiGenerateFile');
+    const count = parseInt(document.getElementById('aiGenerateCount').value);
+    const category = document.getElementById('aiGenerateCategory').value;
+    const additionalPrompt = document.getElementById('aiGeneratePrompt').value;
+    
+    if (!fileInput.files || fileInput.files.length === 0) {
+        alert('ファイルを選択してください');
+        return;
+    }
+    
+    const file = fileInput.files[0];
+    const progressDiv = document.getElementById('aiGenerateProgress');
+    const progressText = document.getElementById('aiGenerateProgressText');
+    const previewDiv = document.getElementById('aiGeneratePreview');
+    const generateButton = document.getElementById('aiGenerateButton');
+    const approveButton = document.getElementById('aiApproveButton');
+    
+    // 進行状況を表示
+    progressDiv.classList.remove('hidden');
+    generateButton.disabled = true;
+    generateButton.classList.add('opacity-50', 'cursor-not-allowed');
+    
+    try {
+        // ファイルを読み込む
+        progressText.textContent = 'ファイルを読み込んでいます...';
+        const fileContent = await readFileAsText(file);
+        
+        // AI生成リクエスト
+        progressText.textContent = 'AIで問題を生成しています...（数十秒かかります）';
+        
+        const response = await axios.post(`${ADMIN_API}/ai/generate-questions`, {
+            file_content: fileContent,
+            file_name: file.name,
+            count: count,
+            category: category,
+            event_id: selectedEvent.id,
+            additional_prompt: additionalPrompt
+        });
+        
+        generatedQuestions = response.data.questions;
+        
+        // プレビューを表示
+        progressDiv.classList.add('hidden');
+        previewDiv.classList.remove('hidden');
+        approveButton.classList.remove('hidden');
+        
+        const previewContent = document.getElementById('aiGeneratePreviewContent');
+        previewContent.innerHTML = generatedQuestions.map((q, idx) => `
+            <div class="bg-gray-50 p-4 rounded border">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-sm font-bold text-gray-700">問題 ${idx + 1} - 問題群${q.pool_group}</span>
+                    <span class="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">${getCategoryLabel(q.category)}</span>
+                </div>
+                <p class="font-medium mb-2">${q.question_text}</p>
+                <div class="grid grid-cols-2 gap-2 text-sm mb-2">
+                    <div class="flex items-center gap-1">
+                        <span class="${q.correct_answer === 'A' ? 'text-green-600 font-bold' : 'text-gray-600'}">A: ${q.option_a}</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <span class="${q.correct_answer === 'B' ? 'text-green-600 font-bold' : 'text-gray-600'}">B: ${q.option_b}</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <span class="${q.correct_answer === 'C' ? 'text-green-600 font-bold' : 'text-gray-600'}">C: ${q.option_c}</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <span class="${q.correct_answer === 'D' ? 'text-green-600 font-bold' : 'text-gray-600'}">D: ${q.option_d}</span>
+                    </div>
+                </div>
+                ${q.detailed_explanation ? `
+                    <div class="text-xs text-gray-600 mt-2 p-2 bg-blue-50 rounded">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        ${q.detailed_explanation}
+                    </div>
+                ` : ''}
+            </div>
+        `).join('');
+        
+    } catch (error) {
+        progressDiv.classList.add('hidden');
+        alert('AI生成に失敗しました: ' + (error.response?.data?.error || error.message));
+    } finally {
+        generateButton.disabled = false;
+        generateButton.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+}
+
+async function handleAIApprove() {
+    if (generatedQuestions.length === 0) {
+        alert('生成された問題がありません');
+        return;
+    }
+    
+    const approveButton = document.getElementById('aiApproveButton');
+    approveButton.disabled = true;
+    approveButton.textContent = '登録中...';
+    
+    try {
+        // 問題を一括登録
+        for (const question of generatedQuestions) {
+            await axios.post(`${ADMIN_API}/events/${selectedEvent.id}/questions`, {
+                question_text: question.question_text,
+                option_a: question.option_a,
+                option_b: question.option_b,
+                option_c: question.option_c,
+                option_d: question.option_d,
+                correct_answer: question.correct_answer,
+                pool_group: question.pool_group,
+                category: question.category,
+                source_material: question.source_material,
+                detailed_explanation: question.detailed_explanation
+            });
+        }
+        
+        alert(`${generatedQuestions.length}問の問題を登録しました！`);
+        closeModal();
+        manageQuestions(selectedEvent.id);
+        
+    } catch (error) {
+        alert('問題の登録に失敗しました: ' + error.message);
+        approveButton.disabled = false;
+        approveButton.textContent = '問題を承認して登録';
+    }
+}
+
+function readFileAsText(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = (e) => reject(e);
+        reader.readAsText(file);
+    });
+}
+
+function getCategoryLabel(category) {
+    const labels = {
+        'company_history': '社史',
+        'knowledge': 'ナレッジ',
+        'people': '人物',
+        'product': '製品知識',
+        'compliance': 'コンプライアンス'
+    };
+    return labels[category] || category;
 }
 
 // 初期化

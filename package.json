@@ -18,14 +18,16 @@
     "test": "curl http://localhost:3000"
   },
   "dependencies": {
-    "hono": "^4.11.2"
+    "hono": "^4.11.2",
+    "js-yaml": "^4.1.1",
+    "openai": "^6.15.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250705.0",
     "@hono/vite-build": "^1.2.0",
     "@hono/vite-dev-server": "^0.18.2",
+    "typescript": "^5.0.0",
     "vite": "^6.3.5",
-    "wrangler": "^4.4.0",
-    "typescript": "^5.0.0"
+    "wrangler": "^4.4.0"
   }
 }
