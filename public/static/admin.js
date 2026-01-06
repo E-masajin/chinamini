@@ -1028,5 +1028,237 @@ async function deleteKnowledge(knowledgeId) {
     }
 }
 
+// ナレッジ編集機能
+async function editKnowledge(knowledgeId) {
+    try {
+        // ナレッジデータを取得
+        const response = await axios.get(`${ADMIN_API}/knowledge/${knowledgeId}`);
+        const k = response.data.knowledge;
+        
+        // 編集モーダルを表示
+        const modal = `
+            <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div class="bg-white rounded-xl max-w-4xl w-full max-h-screen overflow-y-auto">
+                    <div class="sticky top-0 bg-white border-b border-gray-200 p-6">
+                        <h2 class="text-2xl font-bold text-gray-800">
+                            <i class="fas fa-edit mr-2 text-green-600"></i>
+                            ナレッジを編集
+                        </h2>
+                    </div>
+                    
+                    <div class="p-6 space-y-6">
+                        <!-- タイトル -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <i class="fas fa-heading mr-1"></i>
+                                タイトル
+                            </label>
+                            <input 
+                                type="text" 
+                                id="editKnowledgeTitle" 
+                                value="${k.title.replace(/"/g, '&quot;')}"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                placeholder="例: 創業年に関する重要な知識"
+                            />
+                        </div>
+                        
+                        <!-- カテゴリ -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <i class="fas fa-tag mr-1"></i>
+                                カテゴリ
+                            </label>
+                            <select 
+                                id="editKnowledgeCategory"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            >
+                                <option value="company_history" ${k.category === 'company_history' ? 'selected' : ''}>社史</option>
+                                <option value="knowledge" ${k.category === 'knowledge' ? 'selected' : ''}>ナレッジ</option>
+                                <option value="people" ${k.category === 'people' ? 'selected' : ''}>人物</option>
+                                <option value="product" ${k.category === 'product' ? 'selected' : ''}>製品知識</option>
+                                <option value="compliance" ${k.category === 'compliance' ? 'selected' : ''}>コンプライアンス</option>
+                            </select>
+                        </div>
+                        
+                        <!-- ステータス -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <i class="fas fa-circle-dot mr-1"></i>
+                                公開ステータス
+                            </label>
+                            <select 
+                                id="editKnowledgeStatus"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            >
+                                <option value="draft" ${k.status === 'draft' ? 'selected' : ''}>下書き</option>
+                                <option value="review" ${k.status === 'review' ? 'selected' : ''}>レビュー待ち</option>
+                                <option value="published" ${k.status === 'published' ? 'selected' : ''}>公開</option>
+                            </select>
+                            <p class="text-xs text-gray-500 mt-1">
+                                <i class="fas fa-info-circle mr-1"></i>
+                                「公開」にすると、ユーザーがナレッジを閲覧できるようになります
+                            </p>
+                        </div>
+                        
+                        <!-- 内容 -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <i class="fas fa-file-alt mr-1"></i>
+                                内容（マークダウン形式）
+                            </label>
+                            <textarea 
+                                id="editKnowledgeContent"
+                                rows="15"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent font-mono text-sm"
+                                placeholder="## 見出し&#10;&#10;本文を記載...&#10;&#10;- リスト項目1&#10;- リスト項目2"
+                            >${k.content}</textarea>
+                            <p class="text-xs text-gray-500 mt-1">
+                                <i class="fas fa-markdown mr-1"></i>
+                                マークダウン記法が使えます（## 見出し、**太字**、- リスト など）
+                            </p>
+                        </div>
+                        
+                        <!-- プレビュー -->
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="block text-sm font-medium text-gray-700">
+                                    <i class="fas fa-eye mr-1"></i>
+                                    プレビュー
+                                </label>
+                                <button 
+                                    onclick="updateKnowledgePreview()"
+                                    class="text-xs px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                >
+                                    <i class="fas fa-sync-alt mr-1"></i>
+                                    更新
+                                </button>
+                            </div>
+                            <div 
+                                id="knowledgePreview"
+                                class="w-full p-4 border border-gray-300 rounded-lg bg-gray-50 prose max-w-none min-h-[200px]"
+                            >
+                                ${k.content.replace(/\n/g, '<br>').replace(/##/g, '<strong>').replace(/\*\*/g, '')}
+                            </div>
+                        </div>
+                        
+                        <!-- メタ情報（読み取り専用） -->
+                        <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                            <h3 class="text-sm font-medium text-gray-700 mb-3">
+                                <i class="fas fa-info-circle mr-1"></i>
+                                メタ情報
+                            </h3>
+                            <div class="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <span class="text-gray-600">正解率:</span>
+                                    <span class="ml-2 font-medium">${k.recognition_rate}%</span>
+                                </div>
+                                <div>
+                                    <span class="text-gray-600">価値スコア:</span>
+                                    <span class="ml-2 font-medium">${k.value_score}/5</span>
+                                </div>
+                                <div>
+                                    <span class="text-gray-600">作成日:</span>
+                                    <span class="ml-2 font-medium">${new Date(k.created_at).toLocaleDateString('ja-JP')}</span>
+                                </div>
+                                <div>
+                                    <span class="text-gray-600">更新日:</span>
+                                    <span class="ml-2 font-medium">${k.updated_at ? new Date(k.updated_at).toLocaleDateString('ja-JP') : '-'}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- フッター（ボタン） -->
+                    <div class="sticky bottom-0 bg-white border-t border-gray-200 p-6">
+                        <div class="flex gap-3">
+                            <button 
+                                onclick="saveKnowledgeEdit(${knowledgeId})"
+                                class="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors"
+                            >
+                                <i class="fas fa-save mr-2"></i>
+                                保存
+                            </button>
+                            <button 
+                                onclick="closeModal()"
+                                class="flex-1 px-6 py-3 bg-gray-300 text-gray-800 rounded-lg hover:bg-gray-400 font-medium transition-colors"
+                            >
+                                <i class="fas fa-times mr-2"></i>
+                                キャンセル
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('admin-app').insertAdjacentHTML('beforeend', modal);
+        
+    } catch (error) {
+        alert('ナレッジの取得に失敗しました: ' + error.message);
+    }
+}
+
+// プレビュー更新関数
+function updateKnowledgePreview() {
+    const content = document.getElementById('editKnowledgeContent').value;
+    const preview = document.getElementById('knowledgePreview');
+    
+    // シンプルなマークダウン変換
+    let html = content
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\n/g, '<br>')
+        .replace(/## (.+?)(?=<br>|$)/g, '<h2 class="text-xl font-bold mt-4 mb-2">$1</h2>')
+        .replace(/### (.+?)(?=<br>|$)/g, '<h3 class="text-lg font-bold mt-3 mb-2">$1</h3>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/- (.+?)(?=<br>|$)/g, '<li class="ml-4">$1</li>');
+    
+    preview.innerHTML = html || '<p class="text-gray-400">内容を入力してください</p>';
+}
+
+// ナレッジ保存関数
+async function saveKnowledgeEdit(knowledgeId) {
+    const title = document.getElementById('editKnowledgeTitle').value.trim();
+    const category = document.getElementById('editKnowledgeCategory').value;
+    const status = document.getElementById('editKnowledgeStatus').value;
+    const content = document.getElementById('editKnowledgeContent').value.trim();
+    
+    // バリデーション
+    if (!title) {
+        alert('タイトルを入力してください');
+        return;
+    }
+    
+    if (!content) {
+        alert('内容を入力してください');
+        return;
+    }
+    
+    // 保存確認
+    const statusLabel = status === 'published' ? '公開' : status === 'review' ? 'レビュー待ち' : '下書き';
+    if (!confirm(`ナレッジを保存しますか？\n\nステータス: ${statusLabel}`)) {
+        return;
+    }
+    
+    try {
+        // 保存処理
+        await axios.put(`${ADMIN_API}/knowledge/${knowledgeId}`, {
+            title: title,
+            category: category,
+            status: status,
+            content: content
+        });
+        
+        alert('ナレッジを保存しました！');
+        closeModal();
+        viewKnowledgeBase();
+        
+    } catch (error) {
+        alert('保存に失敗しました: ' + (error.response?.data?.error || error.message));
+    }
+}
+
 // 初期化
 showAdminLogin();
