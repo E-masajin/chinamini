@@ -1,3 +1,11 @@
+import { Hono } from 'hono'
+
+type Bindings = {
+  DB: D1Database
+}
+
+const app = new Hono<{ Bindings: Bindings }>()
+
 // AI問題生成（ファイルアップロード対応）
 app.post('/admin/api/ai/generate-questions', async (c) => {
   const { DB } = c.env
@@ -218,3 +226,4 @@ app.get('/admin/api/categories', async (c) => {
   
   return c.json({ categories: categories.results })
 })
+export default app

@@ -1,5 +1,7 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import analyticsApi from './analytics-api'
+import aiApi from './ai-api'
 
 type Bindings = {
   DB: D1Database;
@@ -672,5 +674,9 @@ app.post('/admin/api/questions/bulk-create', async (c) => {
     return c.json({ error: '問題の登録に失敗しました', details: error.message }, 500)
   }
 })
+
+// ==================== サブルートをマウント ====================
+app.route('/', analyticsApi)
+app.route('/', aiApi)
 
 export default app

@@ -107,6 +107,9 @@ async function showAdminDashboard() {
                             <button onclick="manageQuestions(${event.id})" class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm">
                                 <i class="fas fa-question-circle"></i>
                             </button>
+                            <button onclick="viewStatistics(${event.id})" class="px-3 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700 text-sm">
+                                <i class="fas fa-chart-bar"></i>
+                            </button>
                             <button onclick="viewParticipants(${event.id})" class="px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 text-sm">
                                 <i class="fas fa-users"></i>
                             </button>
@@ -749,6 +752,280 @@ function getCategoryLabel(category) {
         'compliance': 'コンプライアンス'
     };
     return labels[category] || category;
+}
+
+// ==================== 統計分析機能 ====================
+
+async function viewStatistics(eventId) {
+    selectedEvent = currentEvents.find(e => e.id === eventId);
+    
+    try {
+        const response = await axios.get(`${ADMIN_API}/events/${eventId}/statistics`);
+        const statistics = response.data.statistics || [];
+        
+        const hasAnalysis = statistics.some(s => s.total_answers !== null);
+        
+        const statsHtml = statistics.length > 0 ? statistics.map(stat => {
+            const accuracyClass = stat.accuracy_rate >= 80 ? 'text-green-600' : 
+                                 stat.accuracy_rate >= 50 ? 'text-yellow-600' : 'text-red-600';
+            const recognitionLabel = stat.recognition_level === 'high' ? '高' : 
+                                    stat.recognition_level === 'medium' ? '中' : '低';
+            const recognitionClass = stat.recognition_level === 'high' ? 'bg-green-100 text-green-800' : 
+                                    stat.recognition_level === 'medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800';
+            
+            return `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="px-4 py-3">${stat.id}</td>
+                    <td class="px-4 py-3">${stat.question_text}</td>
+                    <td class="px-4 py-3 text-center">${stat.pool_group}</td>
+                    <td class="px-4 py-3 text-center">${stat.total_answers || '-'}</td>
+                    <td class="px-4 py-3 text-center">${stat.correct_answers || '-'}</td>
+                    <td class="px-4 py-3 text-center">
+                        <span class="font-bold ${accuracyClass}">${stat.accuracy_rate !== null ? stat.accuracy_rate + '%' : '-'}</span>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        ${stat.recognition_level ? `<span class="${recognitionClass} px-2 py-1 rounded text-xs">${recognitionLabel}</span>` : '-'}
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        ${stat.value_score || '-'} / 5
+                    </td>
+                </tr>
+            `;
+        }).join('') : '<tr><td colspan="8" class="px-4 py-8 text-center text-gray-500">統計データがありません</td></tr>';
+        
+        document.getElementById('admin-app').innerHTML = `
+            <div class="min-h-screen bg-gray-100 p-8">
+                <div class="max-w-7xl mx-auto">
+                    <div class="flex justify-between items-center mb-8">
+                        <h1 class="text-3xl font-bold text-gray-800">
+                            <i class="fas fa-chart-bar mr-2"></i>
+                            統計分析: ${selectedEvent.name}
+                        </h1>
+                        <div class="flex gap-2">
+                            ${!hasAnalysis ? `
+                                <button onclick="analyzeEvent(${eventId})" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                                    <i class="fas fa-sync-alt mr-2"></i>
+                                    統計を集計
+                                </button>
+                            ` : `
+                                <button onclick="analyzeEvent(${eventId})" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                                    <i class="fas fa-sync-alt mr-2"></i>
+                                    再集計
+                                </button>
+                                <button onclick="generateKnowledge(${eventId})" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                                    <i class="fas fa-book mr-2"></i>
+                                    ナレッジ生成
+                                </button>
+                                <button onclick="viewKnowledgeBase()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                                    <i class="fas fa-database mr-2"></i>
+                                    ナレッジベース
+                                </button>
+                            `}
+                            <button onclick="showAdminDashboard()" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
+                                <i class="fas fa-arrow-left mr-2"></i>
+                                戻る
+                            </button>
+                        </div>
+                    </div>
+                    
+                    ${!hasAnalysis ? `
+                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                            <p class="text-sm text-yellow-800">
+                                <i class="fas fa-info-circle mr-2"></i>
+                                統計データが未集計です。「統計を集計」ボタンをクリックして、回答データから統計を計算してください。
+                            </p>
+                        </div>
+                    ` : `
+                        <div class="grid grid-cols-3 gap-4 mb-6">
+                            <div class="bg-white p-6 rounded-lg shadow">
+                                <div class="text-sm text-gray-600 mb-2">総問題数</div>
+                                <div class="text-3xl font-bold text-gray-800">${statistics.length}問</div>
+                            </div>
+                            <div class="bg-white p-6 rounded-lg shadow">
+                                <div class="text-sm text-gray-600 mb-2">低正解率問題</div>
+                                <div class="text-3xl font-bold text-red-600">${statistics.filter(s => s.accuracy_rate < 50).length}問</div>
+                            </div>
+                            <div class="bg-white p-6 rounded-lg shadow">
+                                <div class="text-sm text-gray-600 mb-2">高価値問題</div>
+                                <div class="text-3xl font-bold text-purple-600">${statistics.filter(s => s.value_score >= 4).length}問</div>
+                            </div>
+                        </div>
+                    `}
+                    
+                    <div class="bg-white rounded-lg shadow overflow-x-auto">
+                        <table class="w-full">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">問題文</th>
+                                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">問題群</th>
+                                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">回答者数</th>
+                                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">正解者数</th>
+                                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">正解率</th>
+                                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">認識度</th>
+                                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">価値</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${statsHtml}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+    } catch (error) {
+        alert('統計の取得に失敗しました: ' + error.message);
+    }
+}
+
+async function analyzeEvent(eventId) {
+    if (!confirm('統計を集計しますか？（回答データから正解率・認識度を計算します）')) {
+        return;
+    }
+    
+    try {
+        const response = await axios.post(`${ADMIN_API}/events/${eventId}/analyze`);
+        alert(`統計集計が完了しました！\n分析した問題数: ${response.data.analyzed_questions}`);
+        viewStatistics(eventId);
+    } catch (error) {
+        alert('統計集計に失敗しました: ' + (error.response?.data?.error || error.message));
+    }
+}
+
+async function generateKnowledge(eventId) {
+    const threshold = prompt('正解率が何%未満の問題をナレッジ化しますか？（デフォルト: 70%）', '70');
+    
+    if (threshold === null) return;
+    
+    try {
+        const response = await axios.post(`${ADMIN_API}/events/${eventId}/generate-knowledge`, {
+            threshold: parseInt(threshold)
+        });
+        
+        alert(`ナレッジ生成が完了しました！\n生成数: ${response.data.generated}件\n閾値: ${response.data.threshold}%`);
+        
+        if (response.data.generated > 0) {
+            if (confirm('ナレッジベースを表示しますか？')) {
+                viewKnowledgeBase();
+            }
+        }
+    } catch (error) {
+        alert('ナレッジ生成に失敗しました: ' + (error.response?.data?.error || error.message));
+    }
+}
+
+async function viewKnowledgeBase() {
+    try {
+        const response = await axios.get(`${ADMIN_API}/knowledge`);
+        const knowledge = response.data.knowledge || [];
+        
+        const knowledgeHtml = knowledge.length > 0 ? knowledge.map(k => {
+            const statusClass = k.status === 'published' ? 'bg-green-100 text-green-800' : 
+                               k.status === 'draft' ? 'bg-gray-100 text-gray-800' : 'bg-yellow-100 text-yellow-800';
+            const statusLabel = k.status === 'published' ? '公開' : 
+                               k.status === 'draft' ? '下書き' : 'レビュー待ち';
+            
+            return `
+                <div class="bg-white p-6 rounded-lg shadow mb-4">
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <h3 class="text-lg font-bold text-gray-800">${k.title}</h3>
+                            <div class="mt-2 flex gap-2 flex-wrap">
+                                <span class="${statusClass} px-2 py-1 rounded text-xs">${statusLabel}</span>
+                                <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">${getCategoryLabel(k.category)}</span>
+                                <span class="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs">価値: ${k.value_score}/5</span>
+                                <span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs">正解率: ${k.recognition_rate}%</span>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-2">
+                                作成: ${new Date(k.created_at).toLocaleString('ja-JP')}
+                            </p>
+                        </div>
+                        <div class="flex gap-2 ml-4">
+                            <button onclick="viewKnowledgeDetail(${k.id})" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                            <button onclick="editKnowledge(${k.id})" class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button onclick="deleteKnowledge(${k.id})" class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('') : '<p class="text-gray-500 text-center py-8">ナレッジがありません</p>';
+        
+        document.getElementById('admin-app').innerHTML = `
+            <div class="min-h-screen bg-gray-100 p-8">
+                <div class="max-w-6xl mx-auto">
+                    <div class="flex justify-between items-center mb-8">
+                        <h1 class="text-3xl font-bold text-gray-800">
+                            <i class="fas fa-database mr-2"></i>
+                            ナレッジベース
+                        </h1>
+                        <button onclick="showAdminDashboard()" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
+                            <i class="fas fa-arrow-left mr-2"></i>
+                            戻る
+                        </button>
+                    </div>
+                    
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                        <p class="text-sm text-blue-800">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            正解率が低い問題から自動生成されたナレッジです。編集して社内の知識として蓄積できます。
+                        </p>
+                    </div>
+                    
+                    ${knowledgeHtml}
+                </div>
+            </div>
+        `;
+    } catch (error) {
+        alert('ナレッジの取得に失敗しました: ' + error.message);
+    }
+}
+
+async function viewKnowledgeDetail(knowledgeId) {
+    try {
+        const response = await axios.get(`${ADMIN_API}/knowledge/${knowledgeId}`);
+        const k = response.data.knowledge;
+        
+        const modal = `
+            <div id="modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div class="bg-white p-8 rounded-xl max-w-3xl w-full max-h-screen overflow-y-auto">
+                    <h2 class="text-2xl font-bold mb-6">${k.title}</h2>
+                    <div class="prose max-w-none">
+                        ${k.content.replace(/\n/g, '<br>')}
+                    </div>
+                    <div class="flex gap-2 mt-6">
+                        <button onclick="closeModal()" class="flex-1 px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">
+                            閉じる
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('admin-app').insertAdjacentHTML('beforeend', modal);
+    } catch (error) {
+        alert('ナレッジの取得に失敗しました: ' + error.message);
+    }
+}
+
+async function deleteKnowledge(knowledgeId) {
+    if (!confirm('このナレッジを削除しますか？')) {
+        return;
+    }
+    
+    try {
+        await axios.delete(`${ADMIN_API}/knowledge/${knowledgeId}`);
+        alert('ナレッジを削除しました');
+        viewKnowledgeBase();
+    } catch (error) {
+        alert('削除に失敗しました: ' + error.message);
+    }
 }
 
 // 初期化
