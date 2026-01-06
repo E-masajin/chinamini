@@ -12,6 +12,19 @@ function showAdminLogin() {
                     <i class="fas fa-lock mr-2"></i>
                     管理者ログイン
                 </h1>
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                    <p class="text-sm text-yellow-800 font-semibold mb-2">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        デモ用アカウント
+                    </p>
+                    <p class="text-xs text-yellow-700">
+                        <strong>ユーザー名:</strong> admin<br/>
+                        <strong>パスワード:</strong> admin123
+                    </p>
+                    <p class="text-xs text-yellow-600 mt-2">
+                        ※ プロトタイプ・モック用の簡易認証です
+                    </p>
+                </div>
                 <div class="space-y-4">
                     <input 
                         type="text" 
