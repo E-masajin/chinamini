@@ -694,3 +694,714 @@ function renderKnowledgeCategoryContent(category, knowledgeList) {
 
 // 初期化
 showAdminLogin();
+
+// ==================== 予測クイズ管理機能の書き換え ====================
+
+// グローバル変数
+let currentPredictionEvent = null;
+let currentPredictionQuestions = [];
+
+// renderPredictionQuizManagementを書き換え
+async function renderPredictionQuizManagement() {
+    const contentArea = document.getElementById('content-area');
+    contentArea.innerHTML = '<div class="text-center py-8"><i class="fas fa-spinner fa-spin text-4xl text-purple-600"></i></div>';
+    
+    try {
+        const response = await axios.get(`${ADMIN_API}/events`);
+        const events = response.data.events.filter(e => e.quiz_type === 'prediction');
+        
+        contentArea.innerHTML = `
+            <div class="max-w-7xl mx-auto">
+                <div class="flex justify-between items-center mb-8">
+                    <h2 class="text-3xl font-bold text-gray-800">
+                        <i class="fas fa-crystal-ball text-purple-600 mr-3"></i>
+                        クイズ○○後管理（未来予測型）
+                    </h2>
+                    <button 
+                        onclick="showCreatePredictionEventModal()"
+                        class="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition shadow-md"
+                    >
+                        <i class="fas fa-plus mr-2"></i>
+                        新規イベント作成
+                    </button>
+                </div>
+                
+                ${events.length > 0 ? `
+                    <div class="space-y-4">
+                        ${events.map(event => {
+                            const statusClass = event.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800';
+                            const statusText = event.is_active ? 'アクティブ' : '非アクティブ';
+                            
+                            return `
+                                <div class="bg-white p-6 rounded-xl shadow-md">
+                                    <div class="flex justify-between items-start">
+                                        <div class="flex-1">
+                                            <h3 class="text-xl font-bold text-gray-800 mb-2">${event.name}</h3>
+                                            <p class="text-gray-600 mb-4">${event.description || ''}</p>
+                                            <div class="flex gap-2 flex-wrap">
+                                                <span class="${statusClass} px-3 py-1 rounded-full text-xs font-semibold">${statusText}</span>
+                                                <span class="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-xs font-semibold">
+                                                    <i class="fas fa-crystal-ball mr-1"></i>
+                                                    未来予測型
+                                                </span>
+                                                <span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-semibold">${event.questions_per_user || 5}問</span>
+                                            </div>
+                                            <p class="text-sm text-gray-500 mt-3">
+                                                <i class="fas fa-calendar mr-2"></i>
+                                                ${new Date(event.start_date).toLocaleDateString('ja-JP')} 〜 ${new Date(event.end_date).toLocaleDateString('ja-JP')}
+                                            </p>
+                                        </div>
+                                        <div class="flex flex-col gap-2 ml-4">
+                                            <button 
+                                                onclick="managePredictionQuestions(${event.id})"
+                                                class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm"
+                                            >
+                                                <i class="fas fa-question-circle mr-1"></i>
+                                                問題管理
+                                            </button>
+                                            <button 
+                                                onclick="viewPredictionParticipants(${event.id})"
+                                                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+                                            >
+                                                <i class="fas fa-users mr-1"></i>
+                                                参加者
+                                            </button>
+                                            <button 
+                                                onclick="viewPredictionRanking(${event.id})"
+                                                class="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition text-sm"
+                                            >
+                                                <i class="fas fa-trophy mr-1"></i>
+                                                ランキング
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                ` : `
+                    <div class="bg-white rounded-xl shadow-md p-12 text-center">
+                        <i class="fas fa-crystal-ball text-6xl text-purple-300 mb-4"></i>
+                        <h3 class="text-xl font-bold text-gray-800 mb-2">予測イベントがありません</h3>
+                        <p class="text-gray-600 mb-6">新規イベントを作成して未来予測クイズを開始しましょう</p>
+                        <button 
+                            onclick="showCreatePredictionEventModal()"
+                            class="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition"
+                        >
+                            <i class="fas fa-plus mr-2"></i>
+                            最初のイベントを作成
+                        </button>
+                    </div>
+                `}
+            </div>
+        `;
+    } catch (error) {
+        contentArea.innerHTML = '<div class="text-center text-red-600 py-8">データの読み込みに失敗しました</div>';
+    }
+}
+
+// イベント作成モーダル
+function showCreatePredictionEventModal() {
+    const now = new Date();
+    const endDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7日後
+    
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    modal.innerHTML = `
+        <div class="bg-white rounded-2xl p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <h3 class="text-2xl font-bold text-gray-800 mb-6">
+                <i class="fas fa-crystal-ball text-purple-600 mr-2"></i>
+                新規予測イベント作成
+            </h3>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">イベント名</label>
+                    <input 
+                        type="text" 
+                        id="predEventName" 
+                        placeholder="例: 田中君の今日のランチ予測"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    />
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">説明</label>
+                    <textarea 
+                        id="predEventDesc" 
+                        placeholder="例: 田中君が今日のランチで何を食べるか予測しよう！"
+                        rows="3"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    ></textarea>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">開始日時</label>
+                        <input 
+                            type="datetime-local" 
+                            id="predEventStart" 
+                            value="${now.toISOString().slice(0, 16)}"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">終了日時</label>
+                        <input 
+                            type="datetime-local" 
+                            id="predEventEnd" 
+                            value="${endDate.toISOString().slice(0, 16)}"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">問題数</label>
+                    <input 
+                        type="number" 
+                        id="predEventQuestions" 
+                        value="5"
+                        min="1"
+                        max="20"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    />
+                </div>
+            </div>
+            
+            <div class="flex gap-3 mt-6">
+                <button 
+                    onclick="createPredictionEvent()"
+                    class="flex-1 bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 transition font-semibold"
+                >
+                    <i class="fas fa-check mr-2"></i>
+                    作成
+                </button>
+                <button 
+                    onclick="this.closest('.fixed').remove()"
+                    class="flex-1 bg-gray-500 text-white py-3 rounded-lg hover:bg-gray-600 transition font-semibold"
+                >
+                    キャンセル
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+// イベント作成
+async function createPredictionEvent() {
+    const name = document.getElementById('predEventName').value.trim();
+    const description = document.getElementById('predEventDesc').value.trim();
+    const startDate = document.getElementById('predEventStart').value;
+    const endDate = document.getElementById('predEventEnd').value;
+    const questionsPerUser = parseInt(document.getElementById('predEventQuestions').value);
+    
+    if (!name) {
+        alert('イベント名を入力してください');
+        return;
+    }
+    
+    try {
+        await axios.post(`${ADMIN_API}/events`, {
+            name,
+            description,
+            start_date: startDate,
+            end_date: endDate,
+            is_active: 1,
+            questions_per_user: questionsPerUser,
+            mode: 'individual',
+            min_participants: 1,
+            quiz_type: 'prediction'
+        });
+        
+        alert('イベントを作成しました！');
+        document.querySelector('.fixed').remove();
+        renderPredictionQuizManagement();
+        
+    } catch (error) {
+        alert('エラーが発生しました: ' + (error.response?.data?.error || error.message));
+    }
+}
+
+// 問題管理
+async function managePredictionQuestions(eventId) {
+    try {
+        // イベント情報を取得
+        const eventResponse = await axios.get(`${ADMIN_API}/events`);
+        currentPredictionEvent = eventResponse.data.events.find(e => e.id === eventId);
+        
+        // 問題一覧を取得
+        const questionsResponse = await axios.get(`/api/prediction/events/${eventId}/questions`);
+        currentPredictionQuestions = questionsResponse.data.questions || [];
+        
+        const contentArea = document.getElementById('content-area');
+        contentArea.innerHTML = `
+            <div class="max-w-7xl mx-auto">
+                <div class="mb-6">
+                    <button 
+                        onclick="renderPredictionQuizManagement()"
+                        class="text-purple-600 hover:text-purple-800 transition"
+                    >
+                        <i class="fas fa-arrow-left mr-2"></i>
+                        イベント一覧に戻る
+                    </button>
+                </div>
+                
+                <div class="flex justify-between items-center mb-8">
+                    <h2 class="text-2xl font-bold text-gray-800">
+                        <i class="fas fa-question-circle text-purple-600 mr-2"></i>
+                        問題管理：${currentPredictionEvent.name}
+                    </h2>
+                    <button 
+                        onclick="showCreatePredictionQuestionModal()"
+                        class="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition shadow-md"
+                    >
+                        <i class="fas fa-plus mr-2"></i>
+                        問題を追加
+                    </button>
+                </div>
+                
+                ${currentPredictionQuestions.length > 0 ? `
+                    <div class="space-y-4">
+                        ${currentPredictionQuestions.map((q, i) => {
+                            const verifiedClass = q.is_verified ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200';
+                            const verifiedText = q.is_verified ? '判定済み' : '判定待ち';
+                            const verifiedIcon = q.is_verified ? 'fa-check-circle text-green-600' : 'fa-clock text-gray-400';
+                            
+                            return `
+                                <div class="bg-white p-6 rounded-xl shadow-md border-2 ${verifiedClass}">
+                                    <div class="flex justify-between items-start mb-4">
+                                        <div class="flex-1">
+                                            <div class="flex items-center gap-2 mb-2">
+                                                <span class="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-xs font-semibold">
+                                                    問題 ${i + 1}
+                                                </span>
+                                                <span class="text-xs text-gray-500">
+                                                    <i class="fas ${verifiedIcon} mr-1"></i>
+                                                    ${verifiedText}
+                                                </span>
+                                            </div>
+                                            <h3 class="text-lg font-bold text-gray-800 mb-2">${q.question_text}</h3>
+                                        </div>
+                                        ${!q.is_verified ? `
+                                            <button 
+                                                onclick="showVerifyQuestionModal(${q.id})"
+                                                class="ml-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm"
+                                            >
+                                                <i class="fas fa-check mr-1"></i>
+                                                答え合わせ
+                                            </button>
+                                        ` : `
+                                            <span class="ml-4 px-4 py-2 bg-green-100 text-green-800 rounded-lg text-sm font-semibold">
+                                                <i class="fas fa-check-circle mr-1"></i>
+                                                正解: ${q.correct_answer}
+                                            </span>
+                                        `}
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-2 gap-2 mb-4">
+                                        <div class="text-sm">
+                                            <span class="font-semibold text-gray-700">A:</span> ${q.option_a}
+                                        </div>
+                                        <div class="text-sm">
+                                            <span class="font-semibold text-gray-700">B:</span> ${q.option_b}
+                                        </div>
+                                        <div class="text-sm">
+                                            <span class="font-semibold text-gray-700">C:</span> ${q.option_c}
+                                        </div>
+                                        <div class="text-sm">
+                                            <span class="font-semibold text-gray-700">D:</span> ${q.option_d}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="text-xs text-gray-500 flex items-center gap-4">
+                                        <span>
+                                            <i class="fas fa-clock mr-1"></i>
+                                            答え合わせ日時: ${new Date(q.prediction_date).toLocaleString('ja-JP')}
+                                        </span>
+                                        ${q.verification_source ? `
+                                            <span>
+                                                <i class="fas fa-database mr-1"></i>
+                                                ソース: ${q.verification_source}
+                                            </span>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                ` : `
+                    <div class="bg-white rounded-xl shadow-md p-12 text-center">
+                        <i class="fas fa-question-circle text-6xl text-gray-300 mb-4"></i>
+                        <h3 class="text-xl font-bold text-gray-800 mb-2">問題がありません</h3>
+                        <p class="text-gray-600 mb-6">最初の予測問題を作成しましょう</p>
+                        <button 
+                            onclick="showCreatePredictionQuestionModal()"
+                            class="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition"
+                        >
+                            <i class="fas fa-plus mr-2"></i>
+                            問題を追加
+                        </button>
+                    </div>
+                `}
+            </div>
+        `;
+        
+    } catch (error) {
+        alert('エラーが発生しました: ' + (error.response?.data?.error || error.message));
+    }
+}
+
+// 問題作成モーダル
+function showCreatePredictionQuestionModal() {
+    const now = new Date();
+    const twoHoursLater = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto';
+    modal.innerHTML = `
+        <div class="bg-white rounded-2xl p-8 max-w-4xl w-full mx-4 my-8">
+            <h3 class="text-2xl font-bold text-gray-800 mb-6">
+                <i class="fas fa-crystal-ball text-purple-600 mr-2"></i>
+                新規予測問題作成
+            </h3>
+            
+            <div class="space-y-4">
+                <!-- 問題文 -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">問題文</label>
+                    <textarea 
+                        id="predQuestionText" 
+                        placeholder="例: 田中君は2時間後のランチで何を食べるでしょうか？"
+                        rows="3"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    ></textarea>
+                </div>
+                
+                <!-- 選択肢 -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">選択肢 A</label>
+                        <input 
+                            type="text" 
+                            id="predOptionA" 
+                            placeholder="例: ラーメン"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">選択肢 B</label>
+                        <input 
+                            type="text" 
+                            id="predOptionB" 
+                            placeholder="例: カレー"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">選択肢 C</label>
+                        <input 
+                            type="text" 
+                            id="predOptionC" 
+                            placeholder="例: そば"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">選択肢 D</label>
+                        <input 
+                            type="text" 
+                            id="predOptionD" 
+                            placeholder="例: おにぎり"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                    </div>
+                </div>
+                
+                <!-- 答え合わせ日時 -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">答え合わせ日時</label>
+                    <input 
+                        type="datetime-local" 
+                        id="predPredictionDate" 
+                        value="${twoHoursLater.toISOString().slice(0, 16)}"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    />
+                    <p class="text-xs text-gray-500 mt-1">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        この日時になったら答え合わせを行います
+                    </p>
+                </div>
+                
+                <!-- クイック選択 -->
+                <div class="bg-purple-50 p-4 rounded-lg">
+                    <p class="text-sm font-semibold text-purple-900 mb-2">クイック選択</p>
+                    <div class="flex gap-2 flex-wrap">
+                        <button onclick="setQuickTime(0.5)" class="px-3 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700">30分後</button>
+                        <button onclick="setQuickTime(1)" class="px-3 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700">1時間後</button>
+                        <button onclick="setQuickTime(2)" class="px-3 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700">2時間後</button>
+                        <button onclick="setQuickTime(6)" class="px-3 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700">6時間後</button>
+                        <button onclick="setQuickTime(24)" class="px-3 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700">明日</button>
+                        <button onclick="setQuickTime(168)" class="px-3 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700">1週間後</button>
+                    </div>
+                </div>
+                
+                <!-- データソース -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">データソース（オプション）</label>
+                    <input 
+                        type="text" 
+                        id="predVerificationSource" 
+                        placeholder="例: manual, weather_api, stock_api など"
+                        value="manual"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    />
+                </div>
+            </div>
+            
+            <div class="flex gap-3 mt-6">
+                <button 
+                    onclick="createPredictionQuestion()"
+                    class="flex-1 bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 transition font-semibold"
+                >
+                    <i class="fas fa-check mr-2"></i>
+                    作成
+                </button>
+                <button 
+                    onclick="this.closest('.fixed').remove()"
+                    class="flex-1 bg-gray-500 text-white py-3 rounded-lg hover:bg-gray-600 transition font-semibold"
+                >
+                    キャンセル
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+// クイック時間設定
+function setQuickTime(hours) {
+    const now = new Date();
+    const futureTime = new Date(now.getTime() + hours * 60 * 60 * 1000);
+    document.getElementById('predPredictionDate').value = futureTime.toISOString().slice(0, 16);
+}
+
+// 問題作成
+async function createPredictionQuestion() {
+    const questionText = document.getElementById('predQuestionText').value.trim();
+    const optionA = document.getElementById('predOptionA').value.trim();
+    const optionB = document.getElementById('predOptionB').value.trim();
+    const optionC = document.getElementById('predOptionC').value.trim();
+    const optionD = document.getElementById('predOptionD').value.trim();
+    const predictionDate = document.getElementById('predPredictionDate').value;
+    const verificationSource = document.getElementById('predVerificationSource').value.trim();
+    
+    if (!questionText || !optionA || !optionB || !optionC || !optionD) {
+        alert('すべての項目を入力してください');
+        return;
+    }
+    
+    try {
+        await axios.post(`${ADMIN_API}/prediction/questions`, {
+            event_id: currentPredictionEvent.id,
+            question_text: questionText,
+            option_a: optionA,
+            option_b: optionB,
+            option_c: optionC,
+            option_d: optionD,
+            prediction_date: predictionDate,
+            verification_source: verificationSource || 'manual',
+            category_id: 6,
+            source_material: '予測問題',
+            detailed_explanation: ''
+        });
+        
+        alert('問題を作成しました！');
+        document.querySelector('.fixed').remove();
+        managePredictionQuestions(currentPredictionEvent.id);
+        
+    } catch (error) {
+        alert('エラーが発生しました: ' + (error.response?.data?.error || error.message));
+    }
+}
+
+// 答え合わせモーダル
+function showVerifyQuestionModal(questionId) {
+    const question = currentPredictionQuestions.find(q => q.id === questionId);
+    
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    modal.innerHTML = `
+        <div class="bg-white rounded-2xl p-8 max-w-3xl w-full mx-4">
+            <h3 class="text-2xl font-bold text-gray-800 mb-6">
+                <i class="fas fa-check-circle text-green-600 mr-2"></i>
+                答え合わせ
+            </h3>
+            
+            <div class="bg-gray-50 p-4 rounded-lg mb-6">
+                <p class="font-semibold text-gray-800 mb-2">${question.question_text}</p>
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                    <div>A: ${question.option_a}</div>
+                    <div>B: ${question.option_b}</div>
+                    <div>C: ${question.option_c}</div>
+                    <div>D: ${question.option_d}</div>
+                </div>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">正解の選択肢</label>
+                    <select 
+                        id="verifyCorrectAnswer" 
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    >
+                        <option value="">-- 選択してください --</option>
+                        <option value="A">A: ${question.option_a}</option>
+                        <option value="B">B: ${question.option_b}</option>
+                        <option value="C">C: ${question.option_c}</option>
+                        <option value="D">D: ${question.option_d}</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">実際の値（オプション）</label>
+                    <input 
+                        type="text" 
+                        id="verifyActualValue" 
+                        placeholder="例: 田中君はラーメンを食べました"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    />
+                </div>
+                
+                <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4">
+                    <p class="text-sm text-yellow-800">
+                        <i class="fas fa-exclamation-triangle mr-2"></i>
+                        答え合わせを実行すると、全ユーザーの予測が自動的に判定されます。この操作は取り消せません。
+                    </p>
+                </div>
+            </div>
+            
+            <div class="flex gap-3 mt-6">
+                <button 
+                    onclick="verifyQuestion(${questionId})"
+                    class="flex-1 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition font-semibold"
+                >
+                    <i class="fas fa-check mr-2"></i>
+                    答え合わせを実行
+                </button>
+                <button 
+                    onclick="this.closest('.fixed').remove()"
+                    class="flex-1 bg-gray-500 text-white py-3 rounded-lg hover:bg-gray-600 transition font-semibold"
+                >
+                    キャンセル
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+// 答え合わせ実行
+async function verifyQuestion(questionId) {
+    const correctAnswer = document.getElementById('verifyCorrectAnswer').value;
+    const actualValue = document.getElementById('verifyActualValue').value.trim();
+    
+    if (!correctAnswer) {
+        alert('正解の選択肢を選んでください');
+        return;
+    }
+    
+    if (!confirm('本当に答え合わせを実行しますか？\nこの操作は取り消せません。')) {
+        return;
+    }
+    
+    try {
+        const response = await axios.post(`${ADMIN_API}/prediction/questions/${questionId}/verify`, {
+            actual_option: correctAnswer,
+            actual_value: actualValue || correctAnswer,
+            data_source: 'manual',
+            raw_data: JSON.stringify({ verified_at: new Date().toISOString() })
+        });
+        
+        alert(`答え合わせが完了しました！\n${response.data.verified_users}人のユーザーの予測を判定しました。`);
+        document.querySelector('.fixed').remove();
+        managePredictionQuestions(currentPredictionEvent.id);
+        
+    } catch (error) {
+        alert('エラーが発生しました: ' + (error.response?.data?.error || error.message));
+    }
+}
+
+// 参加者一覧（簡易版）
+async function viewPredictionParticipants(eventId) {
+    alert('参加者一覧機能は準備中です');
+}
+
+// ランキング（簡易版）
+async function viewPredictionRanking(eventId) {
+    try {
+        const response = await axios.get(`/api/prediction/events/${eventId}/ranking`);
+        const rankings = response.data.rankings || [];
+        
+        const contentArea = document.getElementById('content-area');
+        contentArea.innerHTML = `
+            <div class="max-w-5xl mx-auto">
+                <div class="mb-6">
+                    <button 
+                        onclick="renderPredictionQuizManagement()"
+                        class="text-purple-600 hover:text-purple-800 transition"
+                    >
+                        <i class="fas fa-arrow-left mr-2"></i>
+                        イベント一覧に戻る
+                    </button>
+                </div>
+                
+                <div class="bg-white rounded-2xl shadow-xl p-8">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">
+                        <i class="fas fa-trophy text-yellow-500 mr-2"></i>
+                        予測精度ランキング
+                    </h2>
+                    
+                    ${rankings.length > 0 ? `
+                        <div class="space-y-3">
+                            ${rankings.map((r, i) => {
+                                const medalClass = i === 0 ? 'text-yellow-500' : i === 1 ? 'text-gray-400' : i === 2 ? 'text-orange-600' : 'text-gray-300';
+                                return `
+                                    <div class="flex items-center justify-between p-4 border-2 rounded-lg ${i < 3 ? 'border-purple-200 bg-purple-50' : 'border-gray-200'}">
+                                        <div class="flex items-center gap-4">
+                                            <span class="text-2xl font-bold ${medalClass}">
+                                                ${i + 1}
+                                            </span>
+                                            <div>
+                                                <p class="font-semibold text-gray-800">${r.name || r.user_id}</p>
+                                                <p class="text-xs text-gray-500">
+                                                    ${r.total_predictions}問予測 | 平均自信度: ${r.avg_confidence.toFixed(1)}/5
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div class="text-right">
+                                            <p class="text-2xl font-bold text-purple-600">${r.accuracy_rate.toFixed(1)}%</p>
+                                            <p class="text-xs text-gray-500">${r.correct_predictions}/${r.total_predictions}問正解</p>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    ` : `
+                        <div class="text-center py-12">
+                            <i class="fas fa-trophy text-6xl text-gray-300 mb-4"></i>
+                            <p class="text-gray-600">まだランキングデータがありません</p>
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
+    } catch (error) {
+        alert('エラーが発生しました: ' + (error.response?.data?.error || error.message));
+    }
+}
