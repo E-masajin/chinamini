@@ -715,9 +715,82 @@ async function showPredictionEventList() {
             throw new Error('現在開催中の予測クイズはありません');
         }
         
-        // 最初のイベントを表示（複数対応は後で）
-        currentEvent = predictionEvents[0];
-        showPredictionEventDetail(currentEvent);
+        // 複数のイベント一覧を表示
+        document.getElementById('app').innerHTML = `
+            <div class="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100 p-8">
+                <div class="max-w-7xl mx-auto">
+                    <!-- ヘッダー -->
+                    <div class="text-center mb-12">
+                        <h1 class="text-4xl font-bold text-gray-800 mb-4">
+                            <i class="fas fa-crystal-ball text-purple-600 mr-3"></i>
+                            予測クイズを選んでください
+                        </h1>
+                        <p class="text-gray-600 text-lg">未来を予測して、あなたの直感力を試そう！</p>
+                        <div class="mt-4">
+                            <span class="bg-white px-4 py-2 rounded-full text-sm text-gray-700 shadow">
+                                <i class="fas fa-user text-purple-600 mr-2"></i>
+                                ${currentUser.name} さん
+                            </span>
+                            <button onclick="showQuizSelection()" class="ml-4 text-sm text-gray-600 hover:text-purple-600">
+                                <i class="fas fa-arrow-left mr-1"></i>
+                                クイズ選択に戻る
+                            </button>
+                            <button onclick="logout()" class="ml-4 text-sm text-red-600 hover:text-red-800">
+                                <i class="fas fa-sign-out-alt mr-1"></i>
+                                ログアウト
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- イベントカード一覧 -->
+                    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        ${predictionEvents.map((event, index) => {
+                            const icons = ['🍜', '☀️', '📊', '☕', '⏰'];
+                            const colors = ['indigo', 'yellow', 'red', 'green', 'blue'];
+                            const icon = icons[index % icons.length];
+                            const color = colors[index % colors.length];
+                            
+                            return `
+                                <div 
+                                    onclick="selectPredictionEvent(${event.id})"
+                                    class="bg-white rounded-2xl shadow-xl p-6 hover:shadow-2xl transition duration-300 cursor-pointer border-2 border-transparent hover:border-${color}-500 transform hover:scale-105"
+                                >
+                                    <div class="text-center mb-4">
+                                        <div class="text-6xl mb-3">${icon}</div>
+                                        <h2 class="text-xl font-bold text-gray-800 mb-2">${event.name}</h2>
+                                        <p class="text-sm text-gray-600 mb-4">${event.description}</p>
+                                    </div>
+                                    
+                                    <div class="space-y-2 mb-4">
+                                        <div class="flex items-center justify-between text-sm">
+                                            <span class="text-gray-600">
+                                                <i class="fas fa-question-circle text-${color}-500 mr-1"></i>
+                                                問題数
+                                            </span>
+                                            <span class="font-semibold text-${color}-600">${event.questions_per_user || 3}問</span>
+                                        </div>
+                                        <div class="flex items-center justify-between text-sm">
+                                            <span class="text-gray-600">
+                                                <i class="fas fa-calendar text-${color}-500 mr-1"></i>
+                                                期間
+                                            </span>
+                                            <span class="text-xs text-gray-500">
+                                                ${new Date(event.end_date).toLocaleDateString('ja-JP')}まで
+                                            </span>
+                                        </div>
+                                    </div>
+                                    
+                                    <button class="w-full bg-${color}-600 text-white py-3 rounded-lg font-semibold hover:bg-${color}-700 transition">
+                                        <i class="fas fa-play mr-2"></i>
+                                        このクイズに挑戦
+                                    </button>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
         
     } catch (error) {
         document.getElementById('app').innerHTML = `
@@ -736,6 +809,22 @@ async function showPredictionEventList() {
                 </div>
             </div>
         `;
+    }
+}
+
+// イベント選択
+async function selectPredictionEvent(eventId) {
+    try {
+        const response = await axios.get(`${API_BASE}/events`);
+        const allEvents = response.data;
+        const event = allEvents.find(e => e.id === eventId);
+        
+        if (event) {
+            currentEvent = event;
+            showPredictionEventDetail(event);
+        }
+    } catch (error) {
+        alert('イベントの読み込みに失敗しました');
     }
 }
 
