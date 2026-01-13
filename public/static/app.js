@@ -117,6 +117,10 @@ function showQuizSelection() {
                             <i class="fas fa-user text-indigo-600 mr-2"></i>
                             ${currentUser.name} さん
                         </span>
+                        <button onclick="showMyPage()" class="ml-4 text-sm text-indigo-600 hover:text-indigo-800">
+                            <i class="fas fa-trophy mr-1"></i>
+                            マイページ
+                        </button>
                         <button onclick="logout()" class="ml-4 text-sm text-red-600 hover:text-red-800">
                             <i class="fas fa-sign-out-alt mr-1"></i>
                             ログアウト
@@ -1269,4 +1273,153 @@ function showPredictionResults(event, predictions) {
             </div>
         </div>
     `;
+}
+
+// ==================== マイページ（ゲーミフィケーション） ====================
+
+// マイページ表示
+async function showMyPage() {
+    showLoading();
+    
+    try {
+        const userId = currentUser.user_id;
+        
+        // ポイント情報取得
+        const pointsRes = await axios.get(`${API_BASE}/gamification/users/${userId}/points`);
+        const pointsData = pointsRes.data;
+        
+        // バッジ情報取得
+        const badgesRes = await axios.get(`${API_BASE}/gamification/users/${userId}/badges`);
+        const badgesData = badgesRes.data;
+        
+        // 統計情報取得
+        const statsRes = await axios.get(`${API_BASE}/gamification/users/${userId}/statistics`);
+        const statsData = statsRes.data;
+        
+        document.getElementById('app').innerHTML = `
+            <div class="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100 p-8">
+                <div class="max-w-7xl mx-auto">
+                    <!-- ヘッダー -->
+                    <div class="flex justify-between items-center mb-8">
+                        <h1 class="text-3xl font-bold text-gray-800">
+                            <i class="fas fa-trophy text-yellow-500 mr-2"></i>
+                            マイページ
+                        </h1>
+                        <button onclick="showQuizSelection()" class="text-gray-600 hover:text-indigo-600">
+                            <i class="fas fa-arrow-left mr-2"></i>
+                            クイズ選択に戻る
+                        </button>
+                    </div>
+                    
+                    <!-- ユーザー情報 -->
+                    <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
+                        <div class="flex items-center">
+                            <div class="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center text-3xl">
+                                <i class="fas fa-user text-indigo-600"></i>
+                            </div>
+                            <div class="ml-6">
+                                <h2 class="text-2xl font-bold text-gray-800">${currentUser.name}</h2>
+                                <p class="text-gray-600">ユーザーID: ${currentUser.user_id}</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- ポイントサマリー -->
+                    <div class="grid md:grid-cols-3 gap-6 mb-8">
+                        <div class="bg-gradient-to-br from-yellow-400 to-orange-500 rounded-2xl shadow-xl p-6 text-white">
+                            <div class="text-sm opacity-90 mb-2">総合ポイント</div>
+                            <div class="text-4xl font-bold">${pointsData.total_points}</div>
+                            <div class="text-sm opacity-90 mt-2">
+                                <i class="fas fa-star mr-1"></i>
+                                累計獲得
+                            </div>
+                        </div>
+                        <div class="bg-gradient-to-br from-blue-400 to-indigo-500 rounded-2xl shadow-xl p-6 text-white">
+                            <div class="text-sm opacity-90 mb-2">週間ポイント</div>
+                            <div class="text-4xl font-bold">${pointsData.weekly_points}</div>
+                            <div class="text-sm opacity-90 mt-2">
+                                <i class="fas fa-calendar-week mr-1"></i>
+                                今週の獲得
+                            </div>
+                        </div>
+                        <div class="bg-gradient-to-br from-pink-400 to-purple-500 rounded-2xl shadow-xl p-6 text-white">
+                            <div class="text-sm opacity-90 mb-2">月間ポイント</div>
+                            <div class="text-4xl font-bold">${pointsData.monthly_points}</div>
+                            <div class="text-sm opacity-90 mt-2">
+                                <i class="fas fa-calendar-alt mr-1"></i>
+                                今月の獲得
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 統計情報 -->
+                    <div class="bg-white rounded-2xl shadow-xl p-6 mb-8">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">
+                            <i class="fas fa-chart-line text-indigo-600 mr-2"></i>
+                            あなたの予測統計
+                        </h3>
+                        <div class="grid md:grid-cols-4 gap-4">
+                            <div class="text-center p-4 bg-indigo-50 rounded-lg">
+                                <div class="text-2xl font-bold text-indigo-600">${statsData.total_predictions}</div>
+                                <div class="text-sm text-gray-600 mt-1">総予測回数</div>
+                            </div>
+                            <div class="text-center p-4 bg-green-50 rounded-lg">
+                                <div class="text-2xl font-bold text-green-600">${statsData.total_correct}</div>
+                                <div class="text-sm text-gray-600 mt-1">正解数</div>
+                            </div>
+                            <div class="text-center p-4 bg-yellow-50 rounded-lg">
+                                <div class="text-2xl font-bold text-yellow-600">${statsData.accuracy_rate}%</div>
+                                <div class="text-sm text-gray-600 mt-1">正答率</div>
+                            </div>
+                            <div class="text-center p-4 bg-red-50 rounded-lg">
+                                <div class="text-2xl font-bold text-red-600">${statsData.max_streak}</div>
+                                <div class="text-sm text-gray-600 mt-1">最高連続正解</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- バッジコレクション -->
+                    <div class="bg-white rounded-2xl shadow-xl p-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">
+                            <i class="fas fa-medal text-yellow-500 mr-2"></i>
+                            獲得バッジ (${badgesData.earned_count} / ${badgesData.total_count})
+                        </h3>
+                        
+                        ${badgesData.earned.length > 0 ? `
+                            <div class="grid md:grid-cols-3 gap-4 mb-6">
+                                ${badgesData.earned.map(badge => `
+                                    <div class="p-4 border-2 border-yellow-400 bg-yellow-50 rounded-lg text-center">
+                                        <div class="text-4xl mb-2">${badge.icon}</div>
+                                        <div class="font-bold text-gray-800">${badge.name}</div>
+                                        <div class="text-xs text-gray-600 mt-1">${badge.description}</div>
+                                        <div class="text-xs text-gray-500 mt-2">
+                                            獲得日: ${new Date(badge.earned_at).toLocaleDateString('ja-JP')}
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : `
+                            <p class="text-gray-500 text-center py-8">まだバッジを獲得していません</p>
+                        `}
+                        
+                        <h4 class="text-lg font-semibold text-gray-700 mb-3 mt-6">未獲得バッジ</h4>
+                        <div class="grid md:grid-cols-4 gap-3">
+                            ${badgesData.all.filter(b => !badgesData.earned.find(e => e.id === b.id)).map(badge => `
+                                <div class="p-3 border-2 border-gray-200 bg-gray-50 rounded-lg text-center opacity-60">
+                                    <div class="text-3xl mb-1 grayscale">${badge.icon}</div>
+                                    <div class="text-sm font-semibold text-gray-600">${badge.name}</div>
+                                    <div class="text-xs text-gray-500 mt-1">${badge.description}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+    } catch (error) {
+        console.error('MyPage Error:', error);
+        alert('マイページの読み込みに失敗しました');
+        showQuizSelection();
+    }
 }

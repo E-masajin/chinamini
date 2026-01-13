@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import { calculateAndAwardPoints } from './gamification-api'
 
 type Bindings = {
   DB: D1Database
@@ -306,6 +307,28 @@ app.post('/admin/api/prediction/questions/:questionId/verify', async (c) => {
         accuracy,
         avgConf
       ).run()
+      
+      // ポイント付与（ゲーミフィケーション）
+      // このイベントの全ての予測結果を取得
+      const userPredictions: any = await DB.prepare(`
+        SELECT 
+          question_id,
+          predicted_answer,
+          is_correct,
+          confidence_level
+        FROM prediction_answers
+        WHERE user_id = ? AND event_id = ? AND is_correct IS NOT NULL
+      `).bind(user.user_id, user.event_id).all()
+      
+      if (userPredictions.results.length > 0) {
+        // ポイント計算と付与
+        await calculateAndAwardPoints(
+          DB,
+          user.user_id,
+          user.event_id,
+          userPredictions.results
+        )
+      }
     }
     
     return c.json({
