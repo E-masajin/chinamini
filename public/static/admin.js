@@ -133,6 +133,20 @@ function showMainLayout() {
                             <i class="fas fa-book mr-2"></i>
                             ナレッジ管理
                         </button>
+                        <button 
+                            onclick="switchView('stats')"
+                            class="nav-tab ${currentView === 'stats' ? 'active' : ''}"
+                        >
+                            <i class="fas fa-chart-pie mr-2"></i>
+                            問題統計
+                        </button>
+                        <button 
+                            onclick="switchView('import')"
+                            class="nav-tab ${currentView === 'import' ? 'active' : ''}"
+                        >
+                            <i class="fas fa-file-import mr-2"></i>
+                            情報インプット
+                        </button>
                     </div>
                 </div>
             </div>
@@ -205,6 +219,12 @@ async function renderView() {
             break;
         case 'knowledge':
             await renderKnowledgeManagement();
+            break;
+        case 'stats':
+            await renderQuestionStats();
+            break;
+        case 'import':
+            await renderKnowledgeImport();
             break;
     }
 }
@@ -1418,6 +1438,45 @@ function showCreatePredictionQuestionModal() {
             </div>
             
             <div class="space-y-4">
+                <!-- 問題種別選択 -->
+                <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border-2 border-blue-200">
+                    <div class="flex justify-between items-center mb-3">
+                        <label class="block text-sm font-bold text-blue-900">
+                            <i class="fas fa-tags mr-2"></i>
+                            問題種別
+                        </label>
+                        <button 
+                            onclick="aiClassifyCurrentQuestion()" 
+                            class="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition text-sm font-semibold shadow-md"
+                        >
+                            <i class="fas fa-magic mr-2"></i>
+                            AI自動分類
+                        </button>
+                    </div>
+                    <select 
+                        id="predQuestionType" 
+                        class="w-full px-4 py-3 border-2 border-blue-300 rounded-lg text-base font-medium focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                    >
+                        <option value="entertainment" selected>🎮 エンタメ系（未来予測、ゲーム要素、短期保持7日）</option>
+                        <option value="learning">📚 学習系（業務知識、スキル、永久保持）</option>
+                        <option value="knowledge">💡 ナレッジ系（社内情報、手順、永久保持・要更新）</option>
+                        <option value="history">🏛️ 社史系（企業歴史、文化、永久保持）</option>
+                    </select>
+                    <div id="aiClassificationResult" class="mt-3 hidden">
+                        <div class="bg-white p-3 rounded-lg border border-blue-200">
+                            <p class="text-sm font-semibold text-gray-700 mb-1">
+                                <i class="fas fa-robot text-purple-600 mr-1"></i>
+                                AI分類結果
+                            </p>
+                            <div id="aiClassificationContent" class="text-sm text-gray-600"></div>
+                        </div>
+                    </div>
+                    <p class="text-xs text-blue-700 mt-2">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        エンタメ系は7日後に自動削除、その他は永久保持されます
+                    </p>
+                </div>
+                
                 <!-- 問題文 -->
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-2">問題文</label>
@@ -1584,6 +1643,64 @@ function setQuickTime(hours) {
     document.getElementById('predPredictionDate').value = futureTime.toISOString().slice(0, 16);
 }
 
+// AI自動分類
+async function aiClassifyCurrentQuestion() {
+    const questionText = document.getElementById('predQuestionText').value.trim();
+    const optionA = document.getElementById('predOptionA').value.trim();
+    const optionB = document.getElementById('predOptionB').value.trim();
+    const optionC = document.getElementById('predOptionC').value.trim();
+    const optionD = document.getElementById('predOptionD').value.trim();
+    
+    if (!questionText) {
+        alert('問題文を入力してください');
+        return;
+    }
+    
+    const resultDiv = document.getElementById('aiClassificationResult');
+    const contentDiv = document.getElementById('aiClassificationContent');
+    
+    try {
+        resultDiv.classList.remove('hidden');
+        contentDiv.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>AI分析中...';
+        
+        const response = await axios.post(`${ADMIN_API}/ai/classify-question`, {
+            question_text: questionText,
+            options: [optionA, optionB, optionC, optionD].filter(o => o)
+        });
+        
+        const { type, confidence, reason } = response.data.classification;
+        
+        // 種別を自動選択
+        document.getElementById('predQuestionType').value = type;
+        
+        // 結果を表示
+        const typeLabels = {
+            entertainment: '🎮 エンタメ系',
+            learning: '📚 学習系',
+            knowledge: '💡 ナレッジ系',
+            history: '🏛️ 社史系'
+        };
+        
+        contentDiv.innerHTML = `
+            <div class="space-y-2">
+                <div class="flex items-center">
+                    <span class="font-semibold text-gray-800">分類: </span>
+                    <span class="ml-2 px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs font-bold">
+                        ${typeLabels[type]}
+                    </span>
+                    <span class="ml-2 text-xs text-gray-600">信頼度: ${(confidence * 100).toFixed(0)}%</span>
+                </div>
+                <div>
+                    <span class="text-xs text-gray-600">理由: ${reason}</span>
+                </div>
+            </div>
+        `;
+        
+    } catch (error) {
+        contentDiv.innerHTML = `<span class="text-red-600"><i class="fas fa-exclamation-triangle mr-1"></i>${error.response?.data?.error || error.message}</span>`;
+    }
+}
+
 // 問題作成
 async function createPredictionQuestion() {
     const questionText = document.getElementById('predQuestionText').value.trim();
@@ -1593,6 +1710,7 @@ async function createPredictionQuestion() {
     const optionD = document.getElementById('predOptionD').value.trim();
     const predictionDate = document.getElementById('predPredictionDate').value;
     const verificationSource = document.getElementById('predVerificationSource').value.trim();
+    const questionType = document.getElementById('predQuestionType').value;
     
     if (!questionText || !optionA || !optionB || !optionC || !optionD) {
         alert('すべての項目を入力してください');
@@ -1611,7 +1729,9 @@ async function createPredictionQuestion() {
             verification_source: verificationSource || 'manual',
             category_id: 6,
             source_material: '予測問題',
-            detailed_explanation: ''
+            detailed_explanation: '',
+            question_type: questionType,
+            retention_policy: questionType === 'entertainment' ? 'short' : 'permanent'
         });
         
         alert('問題を作成しました！');
@@ -1899,5 +2019,533 @@ async function viewPredictionRanking(eventId) {
         `;
     } catch (error) {
         alert('エラーが発生しました: ' + (error.response?.data?.error || error.message));
+    }
+}
+
+// ==================== 問題統計ビュー ====================
+async function renderQuestionStats() {
+    const contentArea = document.getElementById('content-area');
+    contentArea.innerHTML = '<div class="text-center py-8"><i class="fas fa-spinner fa-spin text-4xl text-purple-600"></i></div>';
+    
+    try {
+        const response = await axios.get(`${ADMIN_API}/classification/stats`);
+        const stats = response.data.stats;
+        
+        // 種別ごとの集計
+        const byType = stats.by_type.reduce((acc, item) => {
+            acc[item.question_type || 'unclassified'] = item.count;
+            return acc;
+        }, {});
+        
+        const typeLabels = {
+            entertainment: '🎮 エンタメ系',
+            learning: '📚 学習系',
+            knowledge: '💡 ナレッジ系',
+            history: '🏛️ 社史系',
+            unclassified: '❓ 未分類'
+        };
+        
+        const typeColors = {
+            entertainment: 'from-pink-500 to-rose-500',
+            learning: 'from-blue-500 to-indigo-500',
+            knowledge: 'from-green-500 to-emerald-500',
+            history: 'from-purple-500 to-violet-500',
+            unclassified: 'from-gray-400 to-gray-500'
+        };
+        
+        contentArea.innerHTML = `
+            <div class="max-w-7xl mx-auto">
+                <h2 class="text-3xl font-bold text-gray-800 mb-8">
+                    <i class="fas fa-chart-pie text-purple-600 mr-3"></i>
+                    問題統計・分類管理
+                </h2>
+                
+                <!-- 総問題数 -->
+                <div class="bg-gradient-to-br from-purple-600 to-pink-600 text-white p-8 rounded-2xl shadow-lg mb-8">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-purple-100 text-lg mb-2">総問題数</p>
+                            <p class="text-6xl font-bold">${stats.total}</p>
+                            <p class="text-purple-100 mt-2">
+                                <i class="fas fa-check-circle mr-2"></i>
+                                アクティブ: ${stats.by_active.find(a => a.is_active === 1)?.count || 0}
+                            </p>
+                        </div>
+                        <div class="text-right">
+                            <button 
+                                onclick="bulkClassifyQuestions()" 
+                                class="bg-white text-purple-600 px-6 py-3 rounded-lg font-bold hover:bg-purple-50 transition shadow-md mb-3"
+                            >
+                                <i class="fas fa-magic mr-2"></i>
+                                未分類問題を一括AI分類
+                            </button>
+                            <p class="text-purple-100 text-sm">
+                                ${byType.unclassified || 0}問が未分類
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 種別ごとの統計 -->
+                <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                    ${Object.entries(typeLabels).map(([type, label]) => {
+                        const count = byType[type] || 0;
+                        const percentage = stats.total > 0 ? ((count / stats.total) * 100).toFixed(1) : 0;
+                        
+                        return `
+                            <div class="bg-white rounded-xl shadow-md overflow-hidden">
+                                <div class="bg-gradient-to-r ${typeColors[type]} p-4">
+                                    <h3 class="text-white text-lg font-bold">${label}</h3>
+                                </div>
+                                <div class="p-6">
+                                    <div class="flex items-end justify-between mb-3">
+                                        <span class="text-5xl font-bold text-gray-800">${count}</span>
+                                        <span class="text-2xl text-gray-500">${percentage}%</span>
+                                    </div>
+                                    <div class="w-full bg-gray-200 rounded-full h-2">
+                                        <div class="bg-gradient-to-r ${typeColors[type]} h-2 rounded-full" style="width: ${percentage}%"></div>
+                                    </div>
+                                    ${type === 'entertainment' ? `
+                                        <p class="text-xs text-gray-500 mt-2">
+                                            <i class="fas fa-clock mr-1"></i>
+                                            7日後に自動削除
+                                        </p>
+                                    ` : type === 'unclassified' ? `
+                                        <button 
+                                            onclick="classifyUnclassifiedQuestions('${type}')" 
+                                            class="mt-3 w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition text-sm"
+                                        >
+                                            <i class="fas fa-robot mr-1"></i>
+                                            AI分類を実行
+                                        </button>
+                                    ` : `
+                                        <p class="text-xs text-gray-500 mt-2">
+                                            <i class="fas fa-infinity mr-1"></i>
+                                            永久保持
+                                        </p>
+                                    `}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+                
+                <!-- 保持ポリシー別 -->
+                <div class="bg-white rounded-xl shadow-md p-6">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">
+                        <i class="fas fa-database mr-2 text-blue-600"></i>
+                        データ保持ポリシー別
+                    </h3>
+                    <div class="space-y-3">
+                        ${stats.by_retention.map(item => {
+                            const policy = item.retention_policy || 'not_set';
+                            const policyLabels = {
+                                short: '短期（7日）',
+                                medium: '中期（30日）',
+                                permanent: '永久',
+                                not_set: '未設定'
+                            };
+                            return `
+                                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                    <span class="font-semibold text-gray-700">${policyLabels[policy]}</span>
+                                    <span class="text-2xl font-bold text-gray-800">${item.count}</span>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+    } catch (error) {
+        contentArea.innerHTML = `
+            <div class="text-center py-8 text-red-600">
+                <i class="fas fa-exclamation-triangle text-4xl mb-4"></i>
+                <p>エラーが発生しました: ${error.response?.data?.error || error.message}</p>
+            </div>
+        `;
+    }
+}
+
+// 一括AI分類
+async function bulkClassifyQuestions() {
+    if (!confirm('未分類の問題を一括でAI分類しますか？（APIコストがかかります）')) {
+        return;
+    }
+    
+    alert('この機能は実装中です。現在は個別の問題作成時にAI分類が可能です。');
+}
+
+// ==================== 情報インプットビュー ====================
+async function renderKnowledgeImport() {
+    const contentArea = document.getElementById('content-area');
+    contentArea.innerHTML = `
+        <div class="max-w-4xl mx-auto">
+            <h2 class="text-3xl font-bold text-gray-800 mb-8">
+                <i class="fas fa-file-import text-purple-600 mr-3"></i>
+                情報インプット → AI問題生成
+            </h2>
+            
+            <div class="bg-gradient-to-br from-purple-50 to-pink-50 p-8 rounded-2xl shadow-lg mb-8">
+                <p class="text-gray-700 mb-4">
+                    <i class="fas fa-info-circle text-purple-600 mr-2"></i>
+                    社内資料やテキストから、AIが自動でクイズ問題を生成します
+                </p>
+                <div class="grid md:grid-cols-3 gap-4 text-sm">
+                    <div class="bg-white p-4 rounded-lg">
+                        <i class="fas fa-file-pdf text-red-500 text-2xl mb-2"></i>
+                        <p class="font-semibold">ファイルから生成</p>
+                        <p class="text-xs text-gray-600">PDF、テキストファイル</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-lg">
+                        <i class="fas fa-keyboard text-blue-500 text-2xl mb-2"></i>
+                        <p class="font-semibold">テキストから生成</p>
+                        <p class="text-xs text-gray-600">直接入力した情報</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-lg">
+                        <i class="fas fa-link text-green-500 text-2xl mb-2"></i>
+                        <p class="font-semibold">URLから生成</p>
+                        <p class="text-xs text-gray-600">Webページの内容</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- インプットフォーム -->
+            <div class="bg-white rounded-xl shadow-md p-8">
+                <!-- インプット種別選択 -->
+                <div class="mb-6">
+                    <label class="block text-sm font-bold text-gray-700 mb-3">インプット方法</label>
+                    <div class="grid grid-cols-3 gap-4">
+                        <button 
+                            onclick="selectImportType('text')" 
+                            id="importTypeText"
+                            class="import-type-btn active px-4 py-3 border-2 border-purple-600 bg-purple-50 text-purple-700 rounded-lg font-semibold hover:bg-purple-100 transition"
+                        >
+                            <i class="fas fa-keyboard mr-2"></i>
+                            テキスト
+                        </button>
+                        <button 
+                            onclick="selectImportType('file')" 
+                            id="importTypeFile"
+                            class="import-type-btn px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition"
+                        >
+                            <i class="fas fa-file mr-2"></i>
+                            ファイル
+                        </button>
+                        <button 
+                            onclick="selectImportType('url')" 
+                            id="importTypeUrl"
+                            class="import-type-btn px-4 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition"
+                        >
+                            <i class="fas fa-link mr-2"></i>
+                            URL
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- インプットエリア -->
+                <div id="importInputArea" class="mb-6">
+                    <!-- テキスト入力 -->
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">情報を入力</label>
+                        <textarea 
+                            id="importContent" 
+                            rows="10"
+                            placeholder="例：社内ルール、業務手順、製品情報などを入力してください&#10;&#10;【経費申請について】&#10;経費申請は毎月末日までに提出してください。&#10;交通費は1,000円以上の場合、領収書が必要です。&#10;申請方法は経費システムから行います。"
+                            class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
+                        ></textarea>
+                    </div>
+                </div>
+                
+                <!-- タイトル -->
+                <div class="mb-6">
+                    <label class="block text-sm font-bold text-gray-700 mb-2">タイトル</label>
+                    <input 
+                        type="text" 
+                        id="importTitle" 
+                        placeholder="例: 経費申請ルール"
+                        class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
+                    />
+                </div>
+                
+                <!-- 問題種別 -->
+                <div class="mb-6">
+                    <label class="block text-sm font-bold text-gray-700 mb-2">問題種別</label>
+                    <select 
+                        id="importQuestionType" 
+                        class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500"
+                    >
+                        <option value="learning">📚 学習系（業務知識、スキル）</option>
+                        <option value="knowledge">💡 ナレッジ系（社内情報、手順）</option>
+                        <option value="history">🏛️ 社史系（企業歴史、文化）</option>
+                    </select>
+                </div>
+                
+                <!-- 生成問題数 -->
+                <div class="mb-6">
+                    <label class="block text-sm font-bold text-gray-700 mb-2">生成する問題数</label>
+                    <select 
+                        id="importQuestionCount" 
+                        class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500"
+                    >
+                        <option value="3">3問</option>
+                        <option value="5" selected>5問</option>
+                        <option value="10">10問</option>
+                        <option value="15">15問</option>
+                        <option value="20">20問</option>
+                    </select>
+                </div>
+                
+                <!-- イベント選択 -->
+                <div class="mb-6">
+                    <label class="block text-sm font-bold text-gray-700 mb-2">追加先イベント</label>
+                    <select 
+                        id="importEventId" 
+                        class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500"
+                    >
+                        <option value="">イベントを選択してください</option>
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        問題を追加するイベントを選択してください
+                    </p>
+                </div>
+                
+                <!-- 生成ボタン -->
+                <button 
+                    onclick="generateQuestionsFromContent()" 
+                    class="w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-4 rounded-lg font-bold text-lg hover:from-purple-700 hover:to-pink-700 transition shadow-lg"
+                >
+                    <i class="fas fa-magic mr-2"></i>
+                    AI問題生成を実行
+                </button>
+            </div>
+            
+            <!-- 生成結果プレビュー -->
+            <div id="generatedQuestionsPreview" class="hidden mt-8">
+                <!-- ここに生成結果が表示される -->
+            </div>
+        </div>
+    `;
+    
+    // イベント一覧を読み込み
+    try {
+        const response = await axios.get(`${ADMIN_API}/events`);
+        const events = response.data.events;
+        const eventSelect = document.getElementById('importEventId');
+        
+        events.forEach(event => {
+            const option = document.createElement('option');
+            option.value = event.id;
+            option.textContent = `${event.name}（${event.quiz_type || 'async'}）`;
+            eventSelect.appendChild(option);
+        });
+        
+    } catch (error) {
+        console.error('Failed to load events:', error);
+    }
+}
+
+// インポート種別選択
+let selectedImportType = 'text';
+
+function selectImportType(type) {
+    selectedImportType = type;
+    
+    // ボタンのスタイル更新
+    document.querySelectorAll('.import-type-btn').forEach(btn => {
+        btn.classList.remove('active', 'border-purple-600', 'bg-purple-50', 'text-purple-700');
+        btn.classList.add('border-gray-300', 'text-gray-700');
+    });
+    
+    const selectedBtn = document.getElementById(`importType${type.charAt(0).toUpperCase() + type.slice(1)}`);
+    selectedBtn.classList.add('active', 'border-purple-600', 'bg-purple-50', 'text-purple-700');
+    selectedBtn.classList.remove('border-gray-300', 'text-gray-700');
+    
+    // インプットエリアを更新
+    const inputArea = document.getElementById('importInputArea');
+    
+    if (type === 'text') {
+        inputArea.innerHTML = `
+            <div>
+                <label class="block text-sm font-bold text-gray-700 mb-2">情報を入力</label>
+                <textarea 
+                    id="importContent" 
+                    rows="10"
+                    placeholder="例：社内ルール、業務手順、製品情報などを入力してください"
+                    class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
+                ></textarea>
+            </div>
+        `;
+    } else if (type === 'file') {
+        inputArea.innerHTML = `
+            <div>
+                <label class="block text-sm font-bold text-gray-700 mb-2">ファイルをアップロード</label>
+                <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-purple-500 transition cursor-pointer">
+                    <input type="file" id="importFile" accept=".txt,.pdf,.doc,.docx" class="hidden" onchange="handleFileSelect(event)"/>
+                    <label for="importFile" class="cursor-pointer">
+                        <i class="fas fa-cloud-upload-alt text-6xl text-gray-400 mb-4"></i>
+                        <p class="text-gray-600 font-semibold">クリックしてファイルを選択</p>
+                        <p class="text-xs text-gray-500 mt-2">対応形式: TXT, PDF, DOC, DOCX</p>
+                    </label>
+                    <div id="filePreview" class="mt-4 hidden">
+                        <p class="text-sm text-gray-700"><i class="fas fa-file mr-2"></i><span id="fileName"></span></p>
+                    </div>
+                </div>
+            </div>
+        `;
+    } else if (type === 'url') {
+        inputArea.innerHTML = `
+            <div>
+                <label class="block text-sm font-bold text-gray-700 mb-2">URLを入力</label>
+                <input 
+                    type="url" 
+                    id="importUrl" 
+                    placeholder="https://example.com/article"
+                    class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
+                />
+                <p class="text-xs text-gray-500 mt-1">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    WebページのURLを入力してください（現在は実装中）
+                </p>
+            </div>
+        `;
+    }
+}
+
+// ファイル選択ハンドラ
+function handleFileSelect(event) {
+    const file = event.target.files[0];
+    if (file) {
+        document.getElementById('filePreview').classList.remove('hidden');
+        document.getElementById('fileName').textContent = file.name;
+        
+        // ファイル読み込み（テキストのみ対応）
+        if (file.type === 'text/plain') {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                // contentとして保存
+                window.fileContent = e.target.result;
+            };
+            reader.readAsText(file);
+        } else {
+            alert('現在はテキストファイル（.txt）のみ対応しています');
+        }
+    }
+}
+
+// AI問題生成実行
+async function generateQuestionsFromContent() {
+    let content = '';
+    
+    if (selectedImportType === 'text') {
+        content = document.getElementById('importContent').value.trim();
+    } else if (selectedImportType === 'file') {
+        content = window.fileContent || '';
+    } else if (selectedImportType === 'url') {
+        alert('URL読み込みは現在実装中です');
+        return;
+    }
+    
+    const title = document.getElementById('importTitle').value.trim();
+    const questionType = document.getElementById('importQuestionType').value;
+    const count = parseInt(document.getElementById('importQuestionCount').value);
+    const eventId = document.getElementById('importEventId').value;
+    
+    if (!content) {
+        alert('情報を入力してください');
+        return;
+    }
+    
+    if (!title) {
+        alert('タイトルを入力してください');
+        return;
+    }
+    
+    if (!eventId) {
+        alert('イベントを選択してください');
+        return;
+    }
+    
+    try {
+        // ローディング表示
+        const previewArea = document.getElementById('generatedQuestionsPreview');
+        previewArea.classList.remove('hidden');
+        previewArea.innerHTML = `
+            <div class="bg-white rounded-xl shadow-md p-8 text-center">
+                <i class="fas fa-spinner fa-spin text-6xl text-purple-600 mb-4"></i>
+                <p class="text-xl font-bold text-gray-800">AI問題生成中...</p>
+                <p class="text-sm text-gray-600 mt-2">約10-20秒かかります</p>
+            </div>
+        `;
+        
+        const response = await axios.post(`${ADMIN_API}/knowledge-base/bulk-create`, {
+            input_type: selectedImportType,
+            content: content,
+            title: title,
+            question_type: questionType,
+            count: count,
+            event_id: parseInt(eventId)
+        });
+        
+        const questions = response.data.questions;
+        
+        // 結果を表示
+        previewArea.innerHTML = `
+            <div class="bg-white rounded-xl shadow-md p-8">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-2xl font-bold text-gray-800">
+                        <i class="fas fa-check-circle text-green-600 mr-2"></i>
+                        ${questions.length}問を生成しました
+                    </h3>
+                    <button 
+                        onclick="location.reload()" 
+                        class="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition"
+                    >
+                        <i class="fas fa-sync mr-2"></i>
+                        さらに生成
+                    </button>
+                </div>
+                
+                <div class="space-y-4">
+                    ${questions.map((q, i) => `
+                        <div class="border-2 border-gray-200 rounded-lg p-4 hover:border-purple-300 transition">
+                            <p class="font-bold text-gray-800 mb-3">
+                                <span class="bg-purple-100 text-purple-800 px-2 py-1 rounded text-sm mr-2">Q${i+1}</span>
+                                ${q.question_text}
+                            </p>
+                            <div class="grid grid-cols-2 gap-2 text-sm">
+                                <div class="bg-gray-50 p-2 rounded">A. ${q.option_a}</div>
+                                <div class="bg-gray-50 p-2 rounded">B. ${q.option_b}</div>
+                                <div class="bg-gray-50 p-2 rounded">C. ${q.option_c}</div>
+                                <div class="bg-gray-50 p-2 rounded">D. ${q.option_d}</div>
+                            </div>
+                            <div class="mt-2 text-sm">
+                                <span class="text-green-600 font-semibold">正解: ${q.correct_answer}</span>
+                                <span class="text-gray-500 ml-4">解説: ${q.detailed_explanation}</span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                
+                <div class="mt-6 bg-green-50 p-4 rounded-lg">
+                    <p class="text-green-800">
+                        <i class="fas fa-check mr-2"></i>
+                        すべての問題がイベントに追加されました
+                    </p>
+                </div>
+            </div>
+        `;
+        
+    } catch (error) {
+        const previewArea = document.getElementById('generatedQuestionsPreview');
+        previewArea.classList.remove('hidden');
+        previewArea.innerHTML = `
+            <div class="bg-red-50 border-2 border-red-200 rounded-xl p-6 text-center">
+                <i class="fas fa-exclamation-triangle text-4xl text-red-600 mb-4"></i>
+                <p class="text-xl font-bold text-red-800">エラーが発生しました</p>
+                <p class="text-sm text-red-600 mt-2">${error.response?.data?.error || error.message}</p>
+            </div>
+        `;
     }
 }
