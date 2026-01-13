@@ -280,9 +280,17 @@ async function showAsyncEventList() {
     
     try {
         const response = await axios.get(`${API_BASE}/events/active`);
-        const event = response.data;
+        const allEvents = response.data.events || [];
         
-        // イベントが見つかったら詳細表示
+        // quiz_type='async'のイベントを抽出
+        const asyncEvents = allEvents.filter(e => e.quiz_type === 'async' || !e.quiz_type);
+        
+        if (asyncEvents.length === 0) {
+            throw new Error('現在開催中のイベントはありません');
+        }
+        
+        // 最初のイベントを表示
+        const event = asyncEvents[0];
         currentEvent = event;
         showEventDetail(event);
         
@@ -705,8 +713,8 @@ async function showPredictionEventList() {
     showLoading();
     
     try {
-        const response = await axios.get(`${API_BASE}/events`);
-        const allEvents = response.data;
+        const response = await axios.get(`${API_BASE}/events/active`);
+        const allEvents = response.data.events || [];
         
         // quiz_type='prediction'のイベントを抽出
         const predictionEvents = allEvents.filter(e => e.quiz_type === 'prediction' && e.is_active);
@@ -815,8 +823,8 @@ async function showPredictionEventList() {
 // イベント選択
 async function selectPredictionEvent(eventId) {
     try {
-        const response = await axios.get(`${API_BASE}/events`);
-        const allEvents = response.data;
+        const response = await axios.get(`${API_BASE}/events/active`);
+        const allEvents = response.data.events || [];
         const event = allEvents.find(e => e.id === eventId);
         
         if (event) {

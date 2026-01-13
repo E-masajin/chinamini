@@ -165,19 +165,18 @@ app.get('/api/events/active', async (c) => {
   const { DB } = c.env
   
   const result = await DB.prepare(`
-    SELECT id, name, description, start_date, end_date, questions_per_user, mode, min_participants
+    SELECT id, name, description, start_date, end_date, questions_per_user, mode, min_participants, quiz_type, is_active
     FROM events
     WHERE is_active = 1
       AND datetime('now') BETWEEN start_date AND end_date
     ORDER BY created_at DESC
-    LIMIT 1
-  `).first()
+  `).all()
 
-  if (!result) {
-    return c.json({ error: 'アクティブなイベントがありません' }, 404)
+  if (!result.results || result.results.length === 0) {
+    return c.json({ events: [], error: 'アクティブなイベントがありません' }, 404)
   }
 
-  return c.json(result)
+  return c.json({ events: result.results })
 })
 
 // ユーザー認証・登録（マルチモード対応）
@@ -189,11 +188,12 @@ app.post('/api/auth/login', async (c) => {
     return c.json({ error: 'ユーザーIDを入力してください' }, 400)
   }
 
-  // アクティブなイベント取得
+  // アクティブなイベント取得（非同期型のみ）
   const event: any = await DB.prepare(`
-    SELECT id, name, description, start_date, end_date, questions_per_user, mode, min_participants
+    SELECT id, name, description, start_date, end_date, questions_per_user, mode, min_participants, quiz_type
     FROM events
     WHERE is_active = 1
+      AND quiz_type = 'async'
       AND datetime('now') BETWEEN start_date AND end_date
     ORDER BY created_at DESC
     LIMIT 1
