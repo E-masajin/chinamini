@@ -1,12 +1,14 @@
 import { Hono } from 'hono'
 import api from './api'
 import analyticsApi from './analytics-api'
+import predictionApi from './prediction-api'
 
 const app = new Hono()
 
 // APIルートをマウント
 app.route('/', api)
 app.route('/', analyticsApi)
+app.route('/', predictionApi)
 
 // 管理者画面
 app.get('/admin', (c) => {

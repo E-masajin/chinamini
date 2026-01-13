@@ -229,8 +229,8 @@ async function selectQuizType(quizType) {
         // いつでもクイズ：イベント一覧へ
         showAsyncEventList();
     } else if (quizType === 'prediction') {
-        // クイズ○○後：準備中メッセージ
-        alert('🚧 クイズ○○後は現在準備中です。\nもうしばらくお待ちください！');
+        // クイズ○○後：イベント一覧へ
+        showPredictionEventList();
     }
 }
 
@@ -670,3 +670,479 @@ async function showResult(event, status) {
 
 // 初期化
 showLoginScreen();
+
+// ==================== 未来予測型クイズ（クイズ○○後） ====================
+
+// 予測イベント一覧
+async function showPredictionEventList() {
+    showLoading();
+    
+    try {
+        const response = await axios.get(`${API_BASE}/events`);
+        const allEvents = response.data;
+        
+        // quiz_type='prediction'のイベントを抽出
+        const predictionEvents = allEvents.filter(e => e.quiz_type === 'prediction' && e.is_active);
+        
+        if (predictionEvents.length === 0) {
+            throw new Error('現在開催中の予測クイズはありません');
+        }
+        
+        // 最初のイベントを表示（複数対応は後で）
+        currentEvent = predictionEvents[0];
+        showPredictionEventDetail(currentEvent);
+        
+    } catch (error) {
+        document.getElementById('app').innerHTML = `
+            <div class="min-h-screen flex items-center justify-center p-4">
+                <div class="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
+                    <i class="fas fa-crystal-ball text-6xl text-purple-300 mb-4"></i>
+                    <h2 class="text-2xl font-bold text-gray-800 mb-4">現在開催中の予測クイズはありません</h2>
+                    <p class="text-gray-600 mb-6">次回の予測クイズをお楽しみに！</p>
+                    <button 
+                        onclick="showQuizSelection()"
+                        class="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition"
+                    >
+                        <i class="fas fa-arrow-left mr-2"></i>
+                        クイズ選択に戻る
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+}
+
+// 予測イベント詳細
+async function showPredictionEventDetail(event) {
+    const userId = currentUser.user_id;
+    
+    // 参加状態を確認
+    try {
+        const myPredictions = await axios.get(`${API_BASE}/prediction/events/${event.id}/my-predictions/${userId}`);
+        
+        if (myPredictions.data.predictions && myPredictions.data.predictions.length > 0) {
+            // すでに予測済み：結果表示
+            showPredictionResults(event, myPredictions.data.predictions);
+            return;
+        }
+    } catch (error) {
+        // 予測なし：新規参加
+    }
+    
+    document.getElementById('app').innerHTML = `
+        <div class="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100 p-8">
+            <div class="max-w-3xl mx-auto">
+                <!-- ヘッダー -->
+                <div class="mb-6">
+                    <button 
+                        onclick="showQuizSelection()"
+                        class="text-purple-600 hover:text-purple-800 transition"
+                    >
+                        <i class="fas fa-arrow-left mr-2"></i>
+                        クイズ選択に戻る
+                    </button>
+                </div>
+                
+                <!-- イベントカード -->
+                <div class="bg-white rounded-2xl shadow-xl p-8">
+                    <div class="text-center mb-8">
+                        <i class="fas fa-crystal-ball text-6xl text-purple-500 mb-4"></i>
+                        <h1 class="text-3xl font-bold text-gray-800 mb-2">${event.name}</h1>
+                        <p class="text-gray-600">${event.description || ''}</p>
+                        <div class="mt-4">
+                            <span class="bg-purple-100 text-purple-800 px-4 py-2 rounded-full text-sm font-semibold">
+                                <i class="fas fa-crystal-ball mr-2"></i>
+                                未来予測型クイズ
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <!-- イベント情報 -->
+                    <div class="grid md:grid-cols-2 gap-4 mb-8">
+                        <div class="bg-purple-50 p-4 rounded-lg">
+                            <div class="flex items-center mb-2">
+                                <i class="fas fa-calendar text-purple-600 mr-2"></i>
+                                <span class="font-semibold text-gray-700">予測期間</span>
+                            </div>
+                            <p class="text-sm text-gray-600">
+                                ${new Date(event.start_date).toLocaleDateString('ja-JP')} 〜 
+                                ${new Date(event.end_date).toLocaleDateString('ja-JP')}
+                            </p>
+                        </div>
+                        
+                        <div class="bg-pink-50 p-4 rounded-lg">
+                            <div class="flex items-center mb-2">
+                                <i class="fas fa-question-circle text-pink-600 mr-2"></i>
+                                <span class="font-semibold text-gray-700">予測問題数</span>
+                            </div>
+                            <p class="text-sm text-gray-600">${event.questions_per_user || 5}問</p>
+                        </div>
+                    </div>
+                    
+                    <!-- 説明 -->
+                    <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-6">
+                        <p class="text-sm text-yellow-800 mb-2">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            <strong>未来予測型クイズとは？</strong>
+                        </p>
+                        <ul class="text-sm text-yellow-700 space-y-1 ml-6">
+                            <li>• 未来の状態や結果を予測します</li>
+                            <li>• 答えは指定日時に自動で判定されます</li>
+                            <li>• 予測の自信度も入力してください（1-5）</li>
+                            <li>• 予測精度ランキングも表示されます</li>
+                        </ul>
+                    </div>
+                    
+                    <!-- スタートボタン -->
+                    <button 
+                        onclick="startPredictionQuiz()"
+                        class="w-full bg-purple-600 text-white py-4 rounded-lg text-lg font-semibold hover:bg-purple-700 transition shadow-lg"
+                    >
+                        <i class="fas fa-crystal-ball mr-2"></i>
+                        予測を開始する
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// 予測クイズ開始
+async function startPredictionQuiz() {
+    const event = currentEvent;
+    const userId = currentUser.user_id;
+    
+    try {
+        showLoading();
+        
+        // 問題取得
+        const response = await axios.get(`${API_BASE}/prediction/events/${event.id}/questions`);
+        currentQuestions = response.data.questions;
+        
+        if (!currentQuestions || currentQuestions.length === 0) {
+            throw new Error('問題が取得できませんでした');
+        }
+        
+        // 予測画面表示
+        userAnswers = [];
+        showPredictionQuestionScreen(0);
+        
+    } catch (error) {
+        alert('エラーが発生しました: ' + (error.response?.data?.error || error.message));
+        showPredictionEventDetail(event);
+    }
+}
+
+// 予測問題画面
+function showPredictionQuestionScreen(questionIndex) {
+    if (questionIndex >= currentQuestions.length) {
+        // 全問回答完了
+        submitPredictions();
+        return;
+    }
+    
+    const question = currentQuestions[questionIndex];
+    const progress = ((questionIndex + 1) / currentQuestions.length) * 100;
+    const predictionDate = new Date(question.prediction_date);
+    
+    document.getElementById('app').innerHTML = `
+        <div class="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100 p-8">
+            <div class="max-w-3xl mx-auto">
+                <!-- プログレスバー -->
+                <div class="mb-8">
+                    <div class="flex justify-between text-sm text-gray-600 mb-2">
+                        <span>予測 ${questionIndex + 1} / ${currentQuestions.length}</span>
+                        <span>${Math.round(progress)}%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-3">
+                        <div class="bg-purple-600 h-3 rounded-full transition-all duration-300" style="width: ${progress}%"></div>
+                    </div>
+                </div>
+                
+                <!-- 問題カード -->
+                <div class="bg-white rounded-2xl shadow-xl p-8">
+                    <!-- 答え合わせ日時 -->
+                    <div class="bg-purple-50 border-l-4 border-purple-500 p-4 mb-6">
+                        <p class="text-sm text-purple-800">
+                            <i class="fas fa-clock mr-2"></i>
+                            <strong>答え合わせ日時：</strong> ${predictionDate.toLocaleString('ja-JP')}
+                        </p>
+                    </div>
+                    
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">
+                        ${question.question_text}
+                    </h2>
+                    
+                    <div class="space-y-4 mb-6">
+                        ${['A', 'B', 'C', 'D'].map(option => `
+                            <button 
+                                onclick="selectPredictionAnswer('${option}', ${questionIndex})"
+                                class="w-full text-left p-4 border-2 border-gray-300 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition prediction-option"
+                                data-option="${option}"
+                            >
+                                <span class="font-bold text-purple-600 mr-3">${option}.</span>
+                                <span class="text-gray-700">${question['option_' + option.toLowerCase()]}</span>
+                            </button>
+                        `).join('')}
+                    </div>
+                    
+                    <!-- 自信度スライダー -->
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            <i class="fas fa-chart-line text-purple-600 mr-2"></i>
+                            予測の自信度（1-5）
+                        </label>
+                        <div class="flex items-center space-x-4">
+                            <input 
+                                type="range" 
+                                id="confidenceSlider" 
+                                min="1" 
+                                max="5" 
+                                value="3"
+                                class="flex-1"
+                            />
+                            <span id="confidenceValue" class="text-2xl font-bold text-purple-600 w-12 text-center">3</span>
+                        </div>
+                        <div class="flex justify-between text-xs text-gray-500 mt-2">
+                            <span>低い</span>
+                            <span>普通</span>
+                            <span>高い</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // 自信度スライダーのイベント
+    document.getElementById('confidenceSlider').addEventListener('input', (e) => {
+        document.getElementById('confidenceValue').textContent = e.target.value;
+    });
+}
+
+// 予測回答選択
+let selectedPrediction = null;
+
+function selectPredictionAnswer(answer, questionIndex) {
+    selectedPrediction = answer;
+    
+    // ボタンの見た目を変更
+    document.querySelectorAll('.prediction-option').forEach(btn => {
+        btn.classList.remove('border-purple-500', 'bg-purple-50');
+        if (btn.dataset.option === answer) {
+            btn.classList.add('border-purple-500', 'bg-purple-50');
+        }
+    });
+    
+    // 確認ボタンを表示
+    const question = currentQuestions[questionIndex];
+    const confidence = document.getElementById('confidenceSlider').value;
+    
+    // 即座に次の問題へ（または確認モーダル）
+    setTimeout(() => {
+        userAnswers.push({
+            question_id: question.id,
+            predicted_answer: answer,
+            confidence_level: parseInt(confidence)
+        });
+        
+        // 次の問題へ
+        showPredictionQuestionScreen(questionIndex + 1);
+    }, 500);
+}
+
+// 予測送信
+async function submitPredictions() {
+    showLoading();
+    
+    try {
+        const response = await axios.post(`${API_BASE}/prediction/events/${currentEvent.id}/submit`, {
+            user_id: currentUser.user_id,
+            predictions: userAnswers
+        });
+        
+        // 完了画面へ
+        showPredictionSubmitted();
+        
+    } catch (error) {
+        alert('予測の送信に失敗しました: ' + (error.response?.data?.error || error.message));
+    }
+}
+
+// 予測送信完了画面
+function showPredictionSubmitted() {
+    document.getElementById('app').innerHTML = `
+        <div class="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100 p-8">
+            <div class="max-w-3xl mx-auto">
+                <!-- 完了カード -->
+                <div class="bg-white rounded-2xl shadow-2xl p-8 text-center">
+                    <i class="fas fa-check-circle text-6xl text-green-500 mb-4"></i>
+                    <h1 class="text-3xl font-bold text-gray-800 mb-2">予測完了！</h1>
+                    <p class="text-gray-600 mb-8">予測を受け付けました</p>
+                    
+                    <!-- 情報 -->
+                    <div class="bg-purple-50 border-l-4 border-purple-500 p-6 mb-8 text-left">
+                        <h3 class="font-bold text-purple-900 mb-3">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            次のステップ
+                        </h3>
+                        <ul class="space-y-2 text-sm text-purple-800">
+                            <li><i class="fas fa-check text-purple-600 mr-2"></i>予測を${userAnswers.length}問送信しました</li>
+                            <li><i class="fas fa-clock text-purple-600 mr-2"></i>各問題の答え合わせ日時に自動で判定されます</li>
+                            <li><i class="fas fa-bell text-purple-600 mr-2"></i>結果はマイページで確認できます</li>
+                            <li><i class="fas fa-trophy text-purple-600 mr-2"></i>予測精度ランキングも更新されます</li>
+                        </ul>
+                    </div>
+                    
+                    <!-- スコア表示（仮） -->
+                    <div class="grid md:grid-cols-2 gap-6 mb-8">
+                        <div class="bg-purple-50 p-6 rounded-xl">
+                            <i class="fas fa-brain text-3xl text-purple-600 mb-2"></i>
+                            <p class="text-sm text-gray-600 mb-1">予測数</p>
+                            <p class="text-3xl font-bold text-purple-600">${userAnswers.length}問</p>
+                        </div>
+                        
+                        <div class="bg-pink-50 p-6 rounded-xl">
+                            <i class="fas fa-chart-line text-3xl text-pink-600 mb-2"></i>
+                            <p class="text-sm text-gray-600 mb-1">平均自信度</p>
+                            <p class="text-3xl font-bold text-pink-600">
+                                ${(userAnswers.reduce((sum, a) => sum + a.confidence_level, 0) / userAnswers.length).toFixed(1)}/5
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <!-- ボタン -->
+                    <div class="space-y-3">
+                        <button 
+                            onclick="showQuizSelection()"
+                            class="w-full bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition"
+                        >
+                            <i class="fas fa-home mr-2"></i>
+                            クイズ選択に戻る
+                        </button>
+                        
+                        <button 
+                            onclick="logout()"
+                            class="w-full bg-gray-500 text-white py-3 rounded-lg font-semibold hover:bg-gray-600 transition"
+                        >
+                            <i class="fas fa-sign-out-alt mr-2"></i>
+                            ログアウト
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// 予測結果表示
+function showPredictionResults(event, predictions) {
+    const verified = predictions.filter(p => p.is_correct !== null);
+    const pending = predictions.filter(p => p.is_correct === null);
+    const correct = predictions.filter(p => p.is_correct === 1);
+    const accuracy = verified.length > 0 ? Math.round((correct.length / verified.length) * 100) : 0;
+    
+    document.getElementById('app').innerHTML = `
+        <div class="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100 p-8">
+            <div class="max-w-4xl mx-auto">
+                <!-- ヘッダー -->
+                <div class="mb-6">
+                    <button 
+                        onclick="showQuizSelection()"
+                        class="text-purple-600 hover:text-purple-800 transition"
+                    >
+                        <i class="fas fa-arrow-left mr-2"></i>
+                        クイズ選択に戻る
+                    </button>
+                </div>
+                
+                <!-- 結果カード -->
+                <div class="bg-white rounded-2xl shadow-2xl p-8">
+                    <div class="text-center mb-8">
+                        <i class="fas fa-crystal-ball text-6xl text-purple-500 mb-4"></i>
+                        <h1 class="text-3xl font-bold text-gray-800 mb-2">${event.name}</h1>
+                        <p class="text-gray-600">あなたの予測結果</p>
+                    </div>
+                    
+                    <!-- スコア -->
+                    <div class="grid md:grid-cols-3 gap-6 mb-8">
+                        <div class="bg-blue-50 p-6 rounded-xl text-center">
+                            <i class="fas fa-list text-3xl text-blue-600 mb-2"></i>
+                            <p class="text-sm text-gray-600 mb-1">総予測数</p>
+                            <p class="text-3xl font-bold text-blue-600">${predictions.length}問</p>
+                        </div>
+                        
+                        <div class="bg-green-50 p-6 rounded-xl text-center">
+                            <i class="fas fa-check-circle text-3xl text-green-600 mb-2"></i>
+                            <p class="text-sm text-gray-600 mb-1">判定済み</p>
+                            <p class="text-3xl font-bold text-green-600">${verified.length}問</p>
+                        </div>
+                        
+                        <div class="bg-purple-50 p-6 rounded-xl text-center">
+                            <i class="fas fa-percentage text-3xl text-purple-600 mb-2"></i>
+                            <p class="text-sm text-gray-600 mb-1">予測精度</p>
+                            <p class="text-3xl font-bold text-purple-600">${accuracy}%</p>
+                        </div>
+                    </div>
+                    
+                    <!-- 予測一覧 -->
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">
+                        <i class="fas fa-list mr-2"></i>
+                        予測詳細
+                    </h3>
+                    
+                    <div class="space-y-3">
+                        ${predictions.map((p, i) => {
+                            const statusIcon = p.is_correct === 1 ? 'fa-check-circle text-green-500' :
+                                             p.is_correct === 0 ? 'fa-times-circle text-red-500' :
+                                             'fa-clock text-gray-400';
+                            const statusText = p.is_correct === 1 ? '正解' :
+                                              p.is_correct === 0 ? '不正解' :
+                                              '判定待ち';
+                            const statusClass = p.is_correct === 1 ? 'bg-green-50 border-green-200' :
+                                               p.is_correct === 0 ? 'bg-red-50 border-red-200' :
+                                               'bg-gray-50 border-gray-200';
+                            
+                            return `
+                                <div class="border-2 ${statusClass} rounded-lg p-4">
+                                    <div class="flex items-start justify-between mb-2">
+                                        <div class="flex-1">
+                                            <p class="font-semibold text-gray-800">${i + 1}. ${p.question_text}</p>
+                                            <p class="text-sm text-gray-600 mt-2">
+                                                <span class="font-semibold">あなたの予測:</span> ${p.predicted_answer}
+                                                ${p.actual_answer ? ` | <span class="font-semibold">正解:</span> ${p.actual_answer}` : ''}
+                                            </p>
+                                        </div>
+                                        <div class="ml-4 text-center">
+                                            <i class="fas ${statusIcon} text-2xl mb-1"></i>
+                                            <p class="text-xs text-gray-600">${statusText}</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center justify-between text-xs text-gray-500 mt-2">
+                                        <span>
+                                            <i class="fas fa-chart-line mr-1"></i>
+                                            自信度: ${p.confidence_level}/5
+                                        </span>
+                                        <span>
+                                            <i class="fas fa-calendar mr-1"></i>
+                                            ${p.verified_at ? new Date(p.verified_at).toLocaleDateString('ja-JP') : '判定日時: ' + new Date(p.prediction_date).toLocaleDateString('ja-JP')}
+                                        </span>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                    
+                    ${pending.length > 0 ? `
+                        <div class="mt-6 bg-yellow-50 border-l-4 border-yellow-500 p-4">
+                            <p class="text-sm text-yellow-800">
+                                <i class="fas fa-clock mr-2"></i>
+                                ${pending.length}問の答え合わせ待ちです。各問題の判定日時になると自動で結果が更新されます。
+                            </p>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        </div>
+    `;
+}
