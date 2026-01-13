@@ -1069,6 +1069,46 @@ function showCreatePredictionQuestionModal() {
                 新規予測問題作成
             </h3>
             
+            <!-- テンプレート選択 -->
+            <div class="mb-6 bg-gradient-to-r from-purple-50 to-indigo-50 p-4 rounded-xl">
+                <p class="text-sm font-semibold text-purple-900 mb-3">
+                    <i class="fas fa-magic mr-1"></i>
+                    よくある予測問題テンプレート
+                </p>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="useTemplate('lunch')" class="px-3 py-2 bg-white text-left rounded-lg hover:bg-purple-100 transition text-sm shadow-sm">
+                        <i class="fas fa-utensils text-orange-500 mr-2"></i>
+                        <strong>ランチ予測</strong><br/>
+                        <span class="text-xs text-gray-600">誰かのランチメニュー</span>
+                    </button>
+                    <button onclick="useTemplate('meeting')" class="px-3 py-2 bg-white text-left rounded-lg hover:bg-purple-100 transition text-sm shadow-sm">
+                        <i class="fas fa-clock text-blue-500 mr-2"></i>
+                        <strong>時間予測</strong><br/>
+                        <span class="text-xs text-gray-600">会議終了時刻など</span>
+                    </button>
+                    <button onclick="useTemplate('vending')" class="px-3 py-2 bg-white text-left rounded-lg hover:bg-purple-100 transition text-sm shadow-sm">
+                        <i class="fas fa-coffee text-green-500 mr-2"></i>
+                        <strong>人気商品予測</strong><br/>
+                        <span class="text-xs text-gray-600">自販機で一番売れる飲み物</span>
+                    </button>
+                    <button onclick="useTemplate('weather')" class="px-3 py-2 bg-white text-left rounded-lg hover:bg-purple-100 transition text-sm shadow-sm">
+                        <i class="fas fa-cloud-sun text-yellow-500 mr-2"></i>
+                        <strong>天気予測</strong><br/>
+                        <span class="text-xs text-gray-600">明日の天気</span>
+                    </button>
+                    <button onclick="useTemplate('sales')" class="px-3 py-2 bg-white text-left rounded-lg hover:bg-purple-100 transition text-sm shadow-sm">
+                        <i class="fas fa-chart-line text-red-500 mr-2"></i>
+                        <strong>営業成績予測</strong><br/>
+                        <span class="text-xs text-gray-600">今日の受注件数</span>
+                    </button>
+                    <button onclick="useTemplate('firstword')" class="px-3 py-2 bg-white text-left rounded-lg hover:bg-purple-100 transition text-sm shadow-sm">
+                        <i class="fas fa-comment text-purple-500 mr-2"></i>
+                        <strong>発言予測</strong><br/>
+                        <span class="text-xs text-gray-600">朝礼での第一声</span>
+                    </button>
+                </div>
+            </div>
+            
             <div class="space-y-4">
                 <!-- 問題文 -->
                 <div>
@@ -1181,6 +1221,52 @@ function showCreatePredictionQuestionModal() {
     `;
     
     document.body.appendChild(modal);
+}
+
+// テンプレート使用
+function useTemplate(templateType) {
+    const templates = {
+        lunch: {
+            question: '田中君は2時間後のランチで何を食べるでしょうか？',
+            options: ['ラーメン', 'カレー', 'そば', 'おにぎり'],
+            hours: 2
+        },
+        meeting: {
+            question: '現在行われている営業会議は何時に終わるでしょうか？',
+            options: ['14:00', '14:30', '15:00', '15:30'],
+            hours: 1
+        },
+        vending: {
+            question: '今日の休憩時間、自販機で一番売れる飲み物は何でしょうか？',
+            options: ['コーヒー', 'お茶', 'コーラ', 'エナジードリンク'],
+            hours: 6
+        },
+        weather: {
+            question: '明日の東京の最高気温は何度でしょうか？',
+            options: ['10度未満', '10〜15度', '16〜20度', '21度以上'],
+            hours: 24
+        },
+        sales: {
+            question: '営業チームは今日何件の受注を獲得するでしょうか？',
+            options: ['0〜2件', '3〜5件', '6〜8件', '9件以上'],
+            hours: 8
+        },
+        firstword: {
+            question: '明日の朝礼、部長の最初の一言は何でしょうか？',
+            options: ['おはようございます', 'さあ今日も頑張ろう', '皆さん調子はどうですか', 'それでは始めます'],
+            hours: 24
+        }
+    };
+    
+    const template = templates[templateType];
+    if (template) {
+        document.getElementById('predQuestionText').value = template.question;
+        document.getElementById('predOptionA').value = template.options[0];
+        document.getElementById('predOptionB').value = template.options[1];
+        document.getElementById('predOptionC').value = template.options[2];
+        document.getElementById('predOptionD').value = template.options[3];
+        setQuickTime(template.hours);
+    }
 }
 
 // クイック時間設定

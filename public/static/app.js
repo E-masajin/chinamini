@@ -178,6 +178,33 @@ function showQuizSelection() {
                         </div>
                         
                         <div class="space-y-3 mb-6">
+                            <div class="bg-purple-50 p-3 rounded-lg mb-4">
+                                <p class="text-sm text-purple-900 font-semibold mb-1">
+                                    <i class="fas fa-lightbulb mr-1"></i>
+                                    こんな問題を予測！
+                                </p>
+                                <p class="text-xs text-purple-700">
+                                    「田中君は2時間後のランチで何を食べる？」<br/>
+                                    「今日の営業チームの受注件数は？」
+                                </p>
+                            </div>
+                            <div class="flex items-start">
+                                <i class="fas fa-check-circle text-purple-500 mr-3 mt-1"></i>
+                                <p class="text-gray-700">未来の出来事を予測</p>
+                            </div>
+                            <div class="flex items-start">
+                                <i class="fas fa-check-circle text-purple-500 mr-3 mt-1"></i>
+                                <p class="text-gray-700">自信度(1〜5)も回答</p>
+                            </div>
+                            <div class="flex items-start">
+                                <i class="fas fa-check-circle text-purple-500 mr-3 mt-1"></i>
+                                <p class="text-gray-700">答え合わせ後にランキング表示</p>
+                            </div>
+                            <div class="flex items-start">
+                                <i class="fas fa-check-circle text-purple-500 mr-3 mt-1"></i>
+                                <p class="text-gray-700">予測精度を分析</p>
+                            </div>
+                        </div>
                             <div class="flex items-start">
                                 <i class="fas fa-check-circle text-green-500 mr-3 mt-1"></i>
                                 <p class="text-gray-700">未来の状態を予測</p>
