@@ -128,24 +128,43 @@ app.post('/api/prediction/events/:eventId/submit', async (c) => {
     const body = await c.req.json()
     const { user_id, predictions } = body
     
-    // predictions: [{ question_id, predicted_answer, confidence_level }]
+    // predictions: [{ question_id, predicted_answer, answer_type }]
     
     for (const pred of predictions) {
-      await DB.prepare(`
-        INSERT INTO prediction_answers (
+      const isFreeText = pred.answer_type === 'free_text'
+      
+      if (isFreeText) {
+        // 記入式回答
+        await DB.prepare(`
+          INSERT INTO prediction_answers (
+            user_id,
+            question_id,
+            event_id,
+            predicted_answer,
+            free_text_answer
+          ) VALUES (?, ?, ?, '', ?)
+        `).bind(
           user_id,
-          question_id,
-          event_id,
-          predicted_answer,
-          confidence_level
-        ) VALUES (?, ?, ?, ?, ?)
-      `).bind(
-        user_id,
-        pred.question_id,
-        eventId,
-        pred.predicted_answer,
-        pred.confidence_level || 3
-      ).run()
+          pred.question_id,
+          eventId,
+          pred.predicted_answer
+        ).run()
+      } else {
+        // 4択回答
+        await DB.prepare(`
+          INSERT INTO prediction_answers (
+            user_id,
+            question_id,
+            event_id,
+            predicted_answer
+          ) VALUES (?, ?, ?, ?)
+        `).bind(
+          user_id,
+          pred.question_id,
+          eventId,
+          pred.predicted_answer
+        ).run()
+      }
     }
     
     // 参加ステータスを更新
@@ -231,6 +250,13 @@ app.post('/admin/api/prediction/questions/:questionId/verify', async (c) => {
     const body = await c.req.json()
     const { actual_value, actual_option, data_source, raw_data } = body
     
+    // 問題情報を取得
+    const question: any = await DB.prepare(`
+      SELECT answer_type FROM questions WHERE id = ?
+    `).bind(questionId).first()
+    
+    const isFreeText = question?.answer_type === 'free_text'
+    
     // 実データを保存
     await DB.prepare(`
       INSERT INTO prediction_actual_data (
@@ -244,7 +270,7 @@ app.post('/admin/api/prediction/questions/:questionId/verify', async (c) => {
       questionId,
       data_source,
       actual_value,
-      actual_option,
+      actual_option || '',
       raw_data || ''
     ).run()
     
@@ -253,20 +279,36 @@ app.post('/admin/api/prediction/questions/:questionId/verify', async (c) => {
       UPDATE questions
       SET correct_answer = ?, is_verified = 1
       WHERE id = ?
-    `).bind(actual_option, questionId).run()
+    `).bind(isFreeText ? actual_value : actual_option, questionId).run()
     
     // 全ユーザーの予測を答え合わせ
-    await DB.prepare(`
-      UPDATE prediction_answers
-      SET 
-        actual_answer = ?,
-        is_correct = CASE 
-          WHEN predicted_answer = ? THEN 1 
-          ELSE 0 
-        END,
-        verified_at = datetime('now')
-      WHERE question_id = ?
-    `).bind(actual_option, actual_option, questionId).run()
+    if (isFreeText) {
+      // 記入式: free_text_answerと実際の値を完全一致で比較
+      await DB.prepare(`
+        UPDATE prediction_answers
+        SET 
+          actual_answer = ?,
+          is_correct = CASE 
+            WHEN LOWER(TRIM(free_text_answer)) = LOWER(TRIM(?)) THEN 1 
+            ELSE 0 
+          END,
+          verified_at = datetime('now')
+        WHERE question_id = ?
+      `).bind(actual_value, actual_value, questionId).run()
+    } else {
+      // 4択: predicted_answerと実際のオプションを比較
+      await DB.prepare(`
+        UPDATE prediction_answers
+        SET 
+          actual_answer = ?,
+          is_correct = CASE 
+            WHEN predicted_answer = ? THEN 1 
+            ELSE 0 
+          END,
+          verified_at = datetime('now')
+        WHERE question_id = ?
+      `).bind(actual_option, actual_option, questionId).run()
+    }
     
     // 統計を更新（各ユーザー）
     const users = await DB.prepare(`

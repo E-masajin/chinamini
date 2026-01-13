@@ -957,6 +957,15 @@ function showPredictionQuestionScreen(questionIndex) {
     const question = currentQuestions[questionIndex];
     const progress = ((questionIndex + 1) / currentQuestions.length) * 100;
     const predictionDate = new Date(question.prediction_date);
+    const isFreeText = question.answer_type === 'free_text';
+    
+    // タイムライン情報の生成
+    const participationDeadline = question.participation_deadline 
+        ? new Date(question.participation_deadline).toLocaleString('ja-JP') 
+        : '未設定';
+    const answerRevealTime = question.answer_reveal_time 
+        ? new Date(question.answer_reveal_time).toLocaleString('ja-JP') 
+        : predictionDate.toLocaleString('ja-JP');
     
     document.getElementById('app').innerHTML = `
         <div class="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100 p-8">
@@ -974,63 +983,64 @@ function showPredictionQuestionScreen(questionIndex) {
                 
                 <!-- 問題カード -->
                 <div class="bg-white rounded-2xl shadow-xl p-8">
-                    <!-- 答え合わせ日時 -->
-                    <div class="bg-purple-50 border-l-4 border-purple-500 p-4 mb-6">
-                        <p class="text-sm text-purple-800">
-                            <i class="fas fa-clock mr-2"></i>
-                            <strong>答え合わせ日時：</strong> ${predictionDate.toLocaleString('ja-JP')}
-                        </p>
+                    <!-- タイムライン情報 -->
+                    <div class="bg-gradient-to-r from-purple-50 to-pink-50 border-l-4 border-purple-500 p-4 mb-6 space-y-2">
+                        <div class="text-sm text-purple-800">
+                            <i class="fas fa-hourglass-start mr-2"></i>
+                            <strong>参加期限：</strong> ${participationDeadline}
+                        </div>
+                        <div class="text-sm text-pink-800">
+                            <i class="fas fa-bell mr-2"></i>
+                            <strong>答え発表：</strong> ${answerRevealTime}
+                        </div>
                     </div>
                     
                     <h2 class="text-2xl font-bold text-gray-800 mb-6">
                         ${question.question_text}
                     </h2>
                     
-                    <div class="space-y-4 mb-6">
-                        ${['A', 'B', 'C', 'D'].map(option => `
-                            <button 
-                                onclick="selectPredictionAnswer('${option}', ${questionIndex})"
-                                class="w-full text-left p-4 border-2 border-gray-300 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition prediction-option"
-                                data-option="${option}"
-                            >
-                                <span class="font-bold text-purple-600 mr-3">${option}.</span>
-                                <span class="text-gray-700">${question['option_' + option.toLowerCase()]}</span>
-                            </button>
-                        `).join('')}
-                    </div>
-                    
-                    <!-- 自信度スライダー -->
-                    <div class="bg-gray-50 p-4 rounded-lg">
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            <i class="fas fa-chart-line text-purple-600 mr-2"></i>
-                            予測の自信度（1-5）
-                        </label>
-                        <div class="flex items-center space-x-4">
+                    ${isFreeText ? `
+                        <!-- 記入式入力 -->
+                        <div class="mb-6">
+                            <label for="freeTextAnswer" class="block text-sm font-semibold text-gray-700 mb-2">
+                                <i class="fas fa-edit text-purple-600 mr-2"></i>
+                                あなたの予測を入力してください
+                            </label>
                             <input 
-                                type="range" 
-                                id="confidenceSlider" 
-                                min="1" 
-                                max="5" 
-                                value="3"
-                                class="flex-1"
+                                type="text" 
+                                id="freeTextAnswer" 
+                                class="w-full p-4 text-lg border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
+                                placeholder="例: カレー / 12:30 / 800"
                             />
-                            <span id="confidenceValue" class="text-2xl font-bold text-purple-600 w-12 text-center">3</span>
+                            <div class="mt-4">
+                                <button 
+                                    onclick="selectPredictionFreeTextAnswer(${questionIndex})"
+                                    class="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold py-4 px-6 rounded-lg hover:from-purple-600 hover:to-pink-600 transition shadow-lg"
+                                >
+                                    <i class="fas fa-check-circle mr-2"></i>
+                                    この予測で決定
+                                </button>
+                            </div>
                         </div>
-                        <div class="flex justify-between text-xs text-gray-500 mt-2">
-                            <span>低い</span>
-                            <span>普通</span>
-                            <span>高い</span>
+                    ` : `
+                        <!-- 4択選択 -->
+                        <div class="space-y-4 mb-6">
+                            ${['A', 'B', 'C', 'D'].map(option => `
+                                <button 
+                                    onclick="selectPredictionAnswer('${option}', ${questionIndex})"
+                                    class="w-full text-left p-4 border-2 border-gray-300 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition prediction-option"
+                                    data-option="${option}"
+                                >
+                                    <span class="font-bold text-purple-600 mr-3">${option}.</span>
+                                    <span class="text-gray-700">${question['option_' + option.toLowerCase()]}</span>
+                                </button>
+                            `).join('')}
                         </div>
-                    </div>
+                    `}
                 </div>
             </div>
         </div>
     `;
-    
-    // 自信度スライダーのイベント
-    document.getElementById('confidenceSlider').addEventListener('input', (e) => {
-        document.getElementById('confidenceValue').textContent = e.target.value;
-    });
 }
 
 // 予測回答選択
@@ -1049,19 +1059,39 @@ function selectPredictionAnswer(answer, questionIndex) {
     
     // 確認ボタンを表示
     const question = currentQuestions[questionIndex];
-    const confidence = document.getElementById('confidenceSlider').value;
     
     // 即座に次の問題へ（または確認モーダル）
     setTimeout(() => {
         userAnswers.push({
             question_id: question.id,
             predicted_answer: answer,
-            confidence_level: parseInt(confidence)
+            answer_type: 'multiple_choice'
         });
         
         // 次の問題へ
         showPredictionQuestionScreen(questionIndex + 1);
     }, 500);
+}
+
+// 記入式回答選択
+function selectPredictionFreeTextAnswer(questionIndex) {
+    const input = document.getElementById('freeTextAnswer');
+    const answer = input.value.trim();
+    
+    if (!answer) {
+        alert('予測を入力してください');
+        return;
+    }
+    
+    const question = currentQuestions[questionIndex];
+    userAnswers.push({
+        question_id: question.id,
+        predicted_answer: answer,
+        answer_type: 'free_text'
+    });
+    
+    // 次の問題へ
+    showPredictionQuestionScreen(questionIndex + 1);
 }
 
 // 予測送信
