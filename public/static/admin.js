@@ -131,6 +131,10 @@ async function showAdminDashboard() {
                             管理画面
                         </h1>
                         <div class="flex gap-2">
+                            <button onclick="showDashboard()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                                <i class="fas fa-th-large mr-2"></i>
+                                ダッシュボード
+                            </button>
                             <button onclick="showCreateEventModal()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
                                 <i class="fas fa-plus mr-2"></i>
                                 新規イベント作成
@@ -1257,6 +1261,233 @@ async function saveKnowledgeEdit(knowledgeId) {
         
     } catch (error) {
         alert('保存に失敗しました: ' + (error.response?.data?.error || error.message));
+    }
+}
+
+// ==================== ダッシュボード機能 ====================
+
+async function showDashboard() {
+    try {
+        // 全イベントのデータを取得
+        const eventsResponse = await axios.get(`${ADMIN_API}/events`);
+        const events = eventsResponse.data.events || [];
+        
+        // 全ナレッジを取得
+        const knowledgeResponse = await axios.get(`${ADMIN_API}/knowledge`);
+        const allKnowledge = knowledgeResponse.data.knowledge || [];
+        
+        // 統計情報を集計
+        let totalQuestions = 0;
+        let totalParticipants = 0;
+        let lowAccuracyCount = 0;
+        let allStatistics = [];
+        
+        for (const event of events) {
+            try {
+                const statsResponse = await axios.get(`${ADMIN_API}/events/${event.id}/statistics`);
+                const stats = statsResponse.data.statistics || [];
+                allStatistics = allStatistics.concat(stats.map(s => ({...s, event_name: event.name})));
+                totalQuestions += stats.length;
+                lowAccuracyCount += stats.filter(s => s.accuracy_rate && s.accuracy_rate < 50).length;
+            } catch (e) {
+                // 統計がないイベントはスキップ
+            }
+        }
+        
+        // カテゴリ別ナレッジ数
+        const knowledgeByCategory = {
+            'company_history': 0,
+            'knowledge': 0,
+            'people': 0,
+            'product': 0,
+            'compliance': 0
+        };
+        
+        allKnowledge.forEach(k => {
+            if (knowledgeByCategory[k.category] !== undefined) {
+                knowledgeByCategory[k.category]++;
+            }
+        });
+        
+        // 低正解率の問題トップ10
+        const lowAccuracyProblems = allStatistics
+            .filter(s => s.accuracy_rate !== null)
+            .sort((a, b) => a.accuracy_rate - b.accuracy_rate)
+            .slice(0, 10);
+        
+        // 高価値ナレッジトップ10
+        const highValueKnowledge = allKnowledge
+            .sort((a, b) => b.value_score - a.value_score)
+            .slice(0, 10);
+        
+        document.getElementById('admin-app').innerHTML = `
+            <div class="min-h-screen bg-gray-50 p-8">
+                <div class="max-w-7xl mx-auto">
+                    <!-- ヘッダー -->
+                    <div class="flex justify-between items-center mb-8">
+                        <h1 class="text-3xl font-bold text-gray-800">
+                            <i class="fas fa-th-large mr-2"></i>
+                            ダッシュボード
+                        </h1>
+                        <button onclick="showAdminDashboard()" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
+                            <i class="fas fa-arrow-left mr-2"></i>
+                            イベント一覧に戻る
+                        </button>
+                    </div>
+                    
+                    <!-- 統計サマリー -->
+                    <div class="grid grid-cols-4 gap-4 mb-8">
+                        <div class="bg-white p-6 rounded-lg shadow">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-600">総イベント数</p>
+                                    <p class="text-3xl font-bold text-gray-800">${events.length}</p>
+                                </div>
+                                <div class="text-4xl text-indigo-500">
+                                    <i class="fas fa-calendar"></i>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white p-6 rounded-lg shadow">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-600">総問題数</p>
+                                    <p class="text-3xl font-bold text-gray-800">${totalQuestions}</p>
+                                </div>
+                                <div class="text-4xl text-green-500">
+                                    <i class="fas fa-question-circle"></i>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white p-6 rounded-lg shadow">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-600">総ナレッジ数</p>
+                                    <p class="text-3xl font-bold text-gray-800">${allKnowledge.length}</p>
+                                </div>
+                                <div class="text-4xl text-purple-500">
+                                    <i class="fas fa-book"></i>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white p-6 rounded-lg shadow">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-600">低正解率問題</p>
+                                    <p class="text-3xl font-bold text-red-600">${lowAccuracyCount}</p>
+                                </div>
+                                <div class="text-4xl text-red-500">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- メインコンテンツ -->
+                    <div class="grid grid-cols-2 gap-8">
+                        <!-- 左側：低正解率の問題 -->
+                        <div class="bg-white rounded-lg shadow">
+                            <div class="p-6 border-b border-gray-200">
+                                <h2 class="text-xl font-bold text-gray-800">
+                                    <i class="fas fa-chart-line mr-2 text-red-500"></i>
+                                    要強化の問題（正解率が低い順）
+                                </h2>
+                            </div>
+                            <div class="p-6 space-y-4 max-h-96 overflow-y-auto">
+                                ${lowAccuracyProblems.length > 0 ? lowAccuracyProblems.map((p, idx) => `
+                                    <div class="border-l-4 border-red-500 bg-red-50 p-4 rounded">
+                                        <div class="flex justify-between items-start mb-2">
+                                            <span class="text-lg font-bold text-red-600">#${idx + 1}</span>
+                                            <span class="text-2xl font-bold text-red-600">${p.accuracy_rate}%</span>
+                                        </div>
+                                        <p class="text-sm text-gray-800 font-medium mb-2">${p.question_text.substring(0, 80)}${p.question_text.length > 80 ? '...' : ''}</p>
+                                        <div class="flex items-center gap-2 text-xs text-gray-600">
+                                            <span><i class="fas fa-calendar mr-1"></i>${p.event_name}</span>
+                                            <span><i class="fas fa-users mr-1"></i>${p.total_answers || 0}人回答</span>
+                                        </div>
+                                    </div>
+                                `).join('') : '<p class="text-gray-500 text-center py-8">データがありません</p>'}
+                            </div>
+                        </div>
+                        
+                        <!-- 右側：高価値ナレッジ -->
+                        <div class="bg-white rounded-lg shadow">
+                            <div class="p-6 border-b border-gray-200">
+                                <h2 class="text-xl font-bold text-gray-800">
+                                    <i class="fas fa-star mr-2 text-yellow-500"></i>
+                                    高価値ナレッジ（価値スコア順）
+                                </h2>
+                            </div>
+                            <div class="p-6 space-y-4 max-h-96 overflow-y-auto">
+                                ${highValueKnowledge.length > 0 ? highValueKnowledge.map((k, idx) => {
+                                    const statusClass = k.status === 'published' ? 'bg-green-100 text-green-800' : 
+                                                       k.status === 'review' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800';
+                                    const statusLabel = k.status === 'published' ? '公開' : 
+                                                       k.status === 'review' ? 'レビュー' : '下書き';
+                                    return `
+                                    <div class="border-l-4 border-purple-500 bg-purple-50 p-4 rounded cursor-pointer hover:bg-purple-100" onclick="viewKnowledgeDetail(${k.id})">
+                                        <div class="flex justify-between items-start mb-2">
+                                            <span class="text-lg font-bold text-purple-600">#${idx + 1}</span>
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-xl font-bold text-purple-600">${k.value_score}/5</span>
+                                                <span class="${statusClass} px-2 py-1 rounded text-xs">${statusLabel}</span>
+                                            </div>
+                                        </div>
+                                        <p class="text-sm text-gray-800 font-medium mb-2">${k.title}</p>
+                                        <div class="flex items-center gap-2 text-xs text-gray-600">
+                                            <span><i class="fas fa-tag mr-1"></i>${getCategoryLabel(k.category)}</span>
+                                            <span><i class="fas fa-percentage mr-1"></i>正解率 ${k.recognition_rate}%</span>
+                                        </div>
+                                    </div>
+                                `}).join('') : '<p class="text-gray-500 text-center py-8">ナレッジがありません</p>'}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- カテゴリ別ナレッジ統計 -->
+                    <div class="mt-8 bg-white rounded-lg shadow p-6">
+                        <h2 class="text-xl font-bold text-gray-800 mb-6">
+                            <i class="fas fa-chart-pie mr-2"></i>
+                            カテゴリ別ナレッジ統計
+                        </h2>
+                        <div class="grid grid-cols-5 gap-4">
+                            <div class="text-center p-4 bg-blue-50 rounded-lg">
+                                <i class="fas fa-building text-3xl text-blue-500 mb-2"></i>
+                                <p class="text-2xl font-bold text-blue-600">${knowledgeByCategory.company_history}</p>
+                                <p class="text-sm text-gray-600">社史</p>
+                            </div>
+                            <div class="text-center p-4 bg-green-50 rounded-lg">
+                                <i class="fas fa-lightbulb text-3xl text-green-500 mb-2"></i>
+                                <p class="text-2xl font-bold text-green-600">${knowledgeByCategory.knowledge}</p>
+                                <p class="text-sm text-gray-600">ナレッジ</p>
+                            </div>
+                            <div class="text-center p-4 bg-purple-50 rounded-lg">
+                                <i class="fas fa-user text-3xl text-purple-500 mb-2"></i>
+                                <p class="text-2xl font-bold text-purple-600">${knowledgeByCategory.people}</p>
+                                <p class="text-sm text-gray-600">人物</p>
+                            </div>
+                            <div class="text-center p-4 bg-yellow-50 rounded-lg">
+                                <i class="fas fa-box text-3xl text-yellow-500 mb-2"></i>
+                                <p class="text-2xl font-bold text-yellow-600">${knowledgeByCategory.product}</p>
+                                <p class="text-sm text-gray-600">製品知識</p>
+                            </div>
+                            <div class="text-center p-4 bg-red-50 rounded-lg">
+                                <i class="fas fa-gavel text-3xl text-red-500 mb-2"></i>
+                                <p class="text-2xl font-bold text-red-600">${knowledgeByCategory.compliance}</p>
+                                <p class="text-sm text-gray-600">コンプライアンス</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+    } catch (error) {
+        console.error('Dashboard Error:', error);
+        alert('ダッシュボードの読み込みに失敗しました: ' + error.message);
     }
 }
 
