@@ -129,120 +129,105 @@ function showQuizSelection() {
                 </div>
                 
                 <!-- クイズカード -->
-                <div class="grid md:grid-cols-2 gap-8">
+                <div class="grid md:grid-cols-2 gap-8 mb-8">
                     <!-- いつでもクイズ -->
                     <div 
                         onclick="selectQuizType('async')"
-                        class="bg-white rounded-2xl shadow-xl p-8 hover:shadow-2xl transition duration-300 cursor-pointer border-2 border-transparent hover:border-indigo-500 transform hover:scale-105"
+                        class="group bg-white rounded-2xl shadow-xl p-8 hover:shadow-2xl transition-all duration-300 cursor-pointer border-4 border-transparent hover:border-indigo-500 transform hover:scale-105 hover:-translate-y-2"
                     >
                         <div class="text-center mb-6">
-                            <div class="w-24 h-24 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <i class="fas fa-clock text-5xl text-indigo-600"></i>
+                            <div class="w-28 h-28 bg-gradient-to-br from-indigo-400 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300 shadow-lg">
+                                <i class="fas fa-clock text-6xl text-white"></i>
                             </div>
-                            <h2 class="text-2xl font-bold text-gray-800 mb-2">いつでもクイズ</h2>
-                            <p class="text-sm text-indigo-600 font-semibold">非同期参加型</p>
+                            <h2 class="text-3xl font-bold text-gray-800 mb-2">いつでもクイズ</h2>
+                            <p class="text-sm text-indigo-600 font-semibold bg-indigo-50 inline-block px-4 py-1 rounded-full">非同期参加型</p>
                         </div>
                         
-                        <div class="space-y-3 mb-6">
+                        <div class="space-y-3 mb-8">
                             <div class="flex items-start">
-                                <i class="fas fa-check-circle text-green-500 mr-3 mt-1"></i>
+                                <i class="fas fa-check-circle text-green-500 mr-3 mt-1 text-xl"></i>
                                 <p class="text-gray-700">期間内ならいつでも参加可能</p>
                             </div>
                             <div class="flex items-start">
-                                <i class="fas fa-check-circle text-green-500 mr-3 mt-1"></i>
+                                <i class="fas fa-check-circle text-green-500 mr-3 mt-1 text-xl"></i>
                                 <p class="text-gray-700">1回のみ回答可能</p>
                             </div>
                             <div class="flex items-start">
-                                <i class="fas fa-check-circle text-green-500 mr-3 mt-1"></i>
+                                <i class="fas fa-check-circle text-green-500 mr-3 mt-1 text-xl"></i>
                                 <p class="text-gray-700">個人戦・チーム戦・企業戦対応</p>
                             </div>
                             <div class="flex items-start">
-                                <i class="fas fa-check-circle text-green-500 mr-3 mt-1"></i>
+                                <i class="fas fa-check-circle text-green-500 mr-3 mt-1 text-xl"></i>
                                 <p class="text-gray-700">カンニング対策済み</p>
                             </div>
                         </div>
                         
-                        <button class="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition">
-                            <i class="fas fa-play mr-2"></i>
-                            このクイズを選ぶ
-                        </button>
+                        <div class="relative">
+                            <div class="absolute inset-0 bg-gradient-to-r from-indigo-600 to-blue-600 rounded-xl blur opacity-25 group-hover:opacity-75 transition-opacity duration-300"></div>
+                            <button class="relative w-full bg-gradient-to-r from-indigo-600 to-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:from-indigo-700 hover:to-blue-700 transition-all duration-300 shadow-lg group-hover:shadow-2xl">
+                                <i class="fas fa-play mr-2"></i>
+                                このクイズを選ぶ
+                                <i class="fas fa-arrow-right ml-2 group-hover:translate-x-1 inline-block transition-transform duration-300"></i>
+                            </button>
+                        </div>
                     </div>
                     
                     <!-- クイズ○○後 -->
                     <div 
                         onclick="selectQuizType('prediction')"
-                        class="bg-white rounded-2xl shadow-xl p-8 hover:shadow-2xl transition duration-300 cursor-pointer border-2 border-transparent hover:border-purple-500 transform hover:scale-105"
+                        class="group bg-white rounded-2xl shadow-xl p-8 hover:shadow-2xl transition-all duration-300 cursor-pointer border-4 border-transparent hover:border-purple-500 transform hover:scale-105 hover:-translate-y-2"
                     >
                         <div class="text-center mb-6">
-                            <div class="w-24 h-24 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <i class="fas fa-crystal-ball text-5xl text-purple-600"></i>
+                            <div class="w-28 h-28 bg-gradient-to-br from-purple-400 to-pink-600 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300 shadow-lg">
+                                <i class="fas fa-crystal-ball text-6xl text-white"></i>
                             </div>
-                            <h2 class="text-2xl font-bold text-gray-800 mb-2">クイズ○○後</h2>
-                            <p class="text-sm text-purple-600 font-semibold">未来予測型</p>
+                            <h2 class="text-3xl font-bold text-gray-800 mb-2">クイズ○○後</h2>
+                            <p class="text-sm text-purple-600 font-semibold bg-purple-50 inline-block px-4 py-1 rounded-full">未来予測型</p>
                         </div>
                         
-                        <div class="space-y-3 mb-6">
-                            <div class="bg-purple-50 p-3 rounded-lg mb-4">
-                                <p class="text-sm text-purple-900 font-semibold mb-1">
+                        <div class="space-y-3 mb-8">
+                            <div class="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-xl mb-4 border-l-4 border-purple-500">
+                                <p class="text-sm text-purple-900 font-semibold mb-2">
                                     <i class="fas fa-lightbulb mr-1"></i>
                                     こんな問題を予測！
                                 </p>
-                                <p class="text-xs text-purple-700">
+                                <p class="text-xs text-purple-700 leading-relaxed">
                                     「田中君は2時間後のランチで何を食べる？」<br/>
                                     「今日の営業チームの受注件数は？」
                                 </p>
                             </div>
                             <div class="flex items-start">
-                                <i class="fas fa-check-circle text-purple-500 mr-3 mt-1"></i>
+                                <i class="fas fa-check-circle text-purple-500 mr-3 mt-1 text-xl"></i>
                                 <p class="text-gray-700">未来の出来事を予測</p>
                             </div>
                             <div class="flex items-start">
-                                <i class="fas fa-check-circle text-purple-500 mr-3 mt-1"></i>
+                                <i class="fas fa-check-circle text-purple-500 mr-3 mt-1 text-xl"></i>
                                 <p class="text-gray-700">自信度(1〜5)も回答</p>
                             </div>
                             <div class="flex items-start">
-                                <i class="fas fa-check-circle text-purple-500 mr-3 mt-1"></i>
+                                <i class="fas fa-check-circle text-purple-500 mr-3 mt-1 text-xl"></i>
                                 <p class="text-gray-700">答え合わせ後にランキング表示</p>
                             </div>
                             <div class="flex items-start">
-                                <i class="fas fa-check-circle text-purple-500 mr-3 mt-1"></i>
+                                <i class="fas fa-check-circle text-purple-500 mr-3 mt-1 text-xl"></i>
                                 <p class="text-gray-700">予測精度を分析</p>
                             </div>
                         </div>
-                            <div class="flex items-start">
-                                <i class="fas fa-check-circle text-green-500 mr-3 mt-1"></i>
-                                <p class="text-gray-700">未来の状態を予測</p>
-                            </div>
-                            <div class="flex items-start">
-                                <i class="fas fa-check-circle text-green-500 mr-3 mt-1"></i>
-                                <p class="text-gray-700">答えは後日自動で判定</p>
-                            </div>
-                            <div class="flex items-start">
-                                <i class="fas fa-check-circle text-green-500 mr-3 mt-1"></i>
-                                <p class="text-gray-700">天気・株価・スポーツなど</p>
-                            </div>
-                            <div class="flex items-start">
-                                <i class="fas fa-check-circle text-green-500 mr-3 mt-1"></i>
-                                <p class="text-gray-700">予測力を磨く</p>
-                            </div>
-                        </div>
                         
-                        <button class="w-full bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 transition">
-                            <i class="fas fa-play mr-2"></i>
-                            このクイズを選ぶ
-                        </button>
-                        
-                        <div class="mt-3 text-center">
-                            <span class="text-xs bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full">
-                                <i class="fas fa-flask mr-1"></i>
-                                準備中
-                            </span>
+                        <div class="relative">
+                            <div class="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl blur opacity-25 group-hover:opacity-75 transition-opacity duration-300"></div>
+                            <button class="relative w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white py-4 rounded-xl font-bold text-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-300 shadow-lg group-hover:shadow-2xl">
+                                <i class="fas fa-crystal-ball mr-2"></i>
+                                このクイズを選ぶ
+                                <i class="fas fa-arrow-right ml-2 group-hover:translate-x-1 inline-block transition-transform duration-300"></i>
+                            </button>
                         </div>
                     </div>
                 </div>
                 
-                <div class="text-center mt-8">
-                    <p class="text-sm text-gray-500">
+                <!-- 注意書き -->
+                <div class="text-center">
+                    <p class="text-sm text-gray-600">
                         <i class="fas fa-info-circle mr-1"></i>
                         クイズ形式によって楽しみ方が異なります
                     </p>
