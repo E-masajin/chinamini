@@ -445,47 +445,355 @@ async function renderAsyncQuizManagement() {
 // ==================== クイズ○○後管理ビュー ====================
 async function renderPredictionQuizManagement() {
     const contentArea = document.getElementById('content-area');
+    contentArea.innerHTML = '<div class="text-center py-8"><i class="fas fa-spinner fa-spin text-4xl text-purple-600"></i></div>';
     
-    contentArea.innerHTML = `
-        <div class="max-w-7xl mx-auto">
-            <div class="flex justify-between items-center mb-8">
-                <h2 class="text-3xl font-bold text-gray-800">
-                    <i class="fas fa-crystal-ball text-purple-600 mr-3"></i>
-                    クイズ○○後管理（未来予測型）
-                </h2>
-                <button 
-                    onclick="alert('未来予測型クイズは準備中です')"
-                    class="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition shadow-md"
-                >
-                    <i class="fas fa-plus mr-2"></i>
-                    新規イベント作成
-                </button>
+    try {
+        // イベント一覧を取得
+        const response = await axios.get(`${ADMIN_API}/events`);
+        const allEvents = response.data.events || [];
+        const predictionEvents = allEvents.filter(e => e.quiz_type === 'prediction');
+        
+        contentArea.innerHTML = `
+            <div class="max-w-7xl mx-auto">
+                <div class="flex justify-between items-center mb-8">
+                    <h2 class="text-3xl font-bold text-gray-800">
+                        <i class="fas fa-crystal-ball text-purple-600 mr-3"></i>
+                        クイズ○○後管理（未来予測型）
+                    </h2>
+                    <div class="flex space-x-3">
+                        <button 
+                            onclick="showAIQuestionGeneratorModal()"
+                            class="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-3 rounded-lg hover:from-purple-600 hover:to-pink-600 transition shadow-lg"
+                        >
+                            <i class="fas fa-magic mr-2"></i>
+                            AI問題生成
+                        </button>
+                        <button 
+                            onclick="showCreatePredictionEventModal()"
+                            class="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition shadow-md"
+                        >
+                            <i class="fas fa-plus mr-2"></i>
+                            新規イベント作成
+                        </button>
+                    </div>
+                </div>
+                
+                ${predictionEvents.length === 0 ? `
+                    <div class="bg-white rounded-xl shadow-md p-12 text-center">
+                        <i class="fas fa-crystal-ball text-6xl text-purple-300 mb-4"></i>
+                        <h3 class="text-2xl font-bold text-gray-800 mb-4">予測クイズがありません</h3>
+                        <p class="text-gray-600 mb-6">
+                            「新規イベント作成」または「AI問題生成」ボタンから始めましょう！
+                        </p>
+                    </div>
+                ` : `
+                    <!-- イベント一覧 -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        ${predictionEvents.map(event => `
+                            <div class="bg-white rounded-xl shadow-md hover:shadow-xl transition p-6 border-l-4 border-purple-500">
+                                <div class="flex items-start justify-between mb-4">
+                                    <h3 class="text-xl font-bold text-gray-800 flex-1">
+                                        ${event.name}
+                                    </h3>
+                                    <span class="${event.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'} px-3 py-1 rounded-full text-xs font-semibold">
+                                        ${event.is_active ? '開催中' : '終了'}
+                                    </span>
+                                </div>
+                                
+                                <p class="text-gray-600 text-sm mb-4 line-clamp-2">
+                                    ${event.description || '説明なし'}
+                                </p>
+                                
+                                <div class="space-y-2 text-sm text-gray-600 mb-4">
+                                    <div>
+                                        <i class="fas fa-calendar text-purple-600 mr-2"></i>
+                                        ${new Date(event.start_date).toLocaleDateString('ja-JP')} 〜 ${new Date(event.end_date).toLocaleDateString('ja-JP')}
+                                    </div>
+                                    <div>
+                                        <i class="fas fa-question-circle text-purple-600 mr-2"></i>
+                                        問題数: ${event.questions_per_user || 5}問
+                                    </div>
+                                </div>
+                                
+                                <div class="flex space-x-2">
+                                    <button 
+                                        onclick="managePredictionQuestions(${event.id})"
+                                        class="flex-1 bg-purple-100 text-purple-700 px-4 py-2 rounded-lg hover:bg-purple-200 transition text-sm font-semibold"
+                                    >
+                                        <i class="fas fa-tasks mr-1"></i>
+                                        問題管理
+                                    </button>
+                                    <button 
+                                        onclick="editEvent(${event.id})"
+                                        class="bg-blue-100 text-blue-700 px-4 py-2 rounded-lg hover:bg-blue-200 transition text-sm"
+                                    >
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `}
+            </div>
+        `;
+        
+    } catch (error) {
+        console.error('Error loading prediction events:', error);
+        contentArea.innerHTML = `
+            <div class="bg-red-50 border-l-4 border-red-500 p-6 rounded-lg">
+                <p class="text-red-800">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    エラーが発生しました: ${error.response?.data?.error || error.message}
+                </p>
+            </div>
+        `;
+    }
+}
+
+// AI問題生成モーダル
+function showAIQuestionGeneratorModal() {
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    modal.innerHTML = `
+        <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="bg-gradient-to-r from-purple-500 to-pink-500 text-white p-6 rounded-t-xl">
+                <h3 class="text-2xl font-bold flex items-center">
+                    <i class="fas fa-magic mr-3"></i>
+                    AI問題生成（未来予測型）
+                </h3>
+                <p class="text-purple-100 text-sm mt-2">
+                    テーマを入力するだけで、AIが自動で予測問題を生成します
+                </p>
             </div>
             
-            <div class="bg-white rounded-xl shadow-md p-12 text-center">
-                <i class="fas fa-flask text-6xl text-purple-300 mb-4"></i>
-                <h3 class="text-2xl font-bold text-gray-800 mb-4">準備中の機能です</h3>
-                <p class="text-gray-600 mb-6">
-                    未来の状態を予測するクイズシステムを開発中です。<br/>
-                    天気予測、株価予測、スポーツ結果予測など、様々な未来予測クイズを作成できるようになります。
-                </p>
-                
-                <div class="max-w-2xl mx-auto bg-purple-50 border-l-4 border-purple-500 p-6 text-left">
-                    <h4 class="font-bold text-purple-900 mb-3">
-                        <i class="fas fa-lightbulb mr-2"></i>
-                        実装予定の機能
-                    </h4>
-                    <ul class="space-y-2 text-sm text-purple-800">
-                        <li><i class="fas fa-check-circle text-purple-600 mr-2"></i>未来の状態を問う問題作成</li>
-                        <li><i class="fas fa-check-circle text-purple-600 mr-2"></i>答え合わせ日時の設定</li>
-                        <li><i class="fas fa-check-circle text-purple-600 mr-2"></i>外部APIからの自動答え合わせ</li>
-                        <li><i class="fas fa-check-circle text-purple-600 mr-2"></i>予測精度の分析</li>
-                        <li><i class="fas fa-check-circle text-purple-600 mr-2"></i>予測力ランキング</li>
-                    </ul>
+            <div class="p-6">
+                <!-- イベント選択 -->
+                <div class="mb-6">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                        <i class="fas fa-calendar text-purple-600 mr-2"></i>
+                        対象イベント
+                    </label>
+                    <select id="aiEventSelect" class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none">
+                        <option value="">イベントを選択...</option>
+                    </select>
                 </div>
+                
+                <!-- テーマ入力 -->
+                <div class="mb-6">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                        <i class="fas fa-lightbulb text-yellow-500 mr-2"></i>
+                        テーマ
+                    </label>
+                    <input 
+                        type="text" 
+                        id="aiThemeInput" 
+                        class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
+                        placeholder="例: オフィスでの身近な予測、天気予測、売上予測"
+                    />
+                </div>
+                
+                <!-- 問題数 -->
+                <div class="mb-6">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                        <i class="fas fa-list-ol text-blue-500 mr-2"></i>
+                        生成する問題数
+                    </label>
+                    <select id="aiCountSelect" class="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none">
+                        <option value="3">3問</option>
+                        <option value="5">5問</option>
+                        <option value="10">10問</option>
+                    </select>
+                </div>
+                
+                <!-- 例 -->
+                <div class="bg-purple-50 border-l-4 border-purple-500 p-4 mb-6">
+                    <h4 class="font-bold text-purple-900 mb-2">
+                        <i class="fas fa-info-circle mr-2"></i>
+                        テーマ例
+                    </h4>
+                    <div class="text-sm text-purple-800 space-y-1">
+                        <div>• オフィスでの身近な予測（同僚の行動、会議時間など）</div>
+                        <div>• 天気予測（明日の最高気温、降水確率など）</div>
+                        <div>• 営業成績予測（今日の受注件数、売上金額など）</div>
+                        <div>• イベント予測（参加人数、人気メニューなど）</div>
+                    </div>
+                </div>
+                
+                <!-- ボタン -->
+                <div class="flex space-x-3">
+                    <button 
+                        onclick="generateAIQuestions()"
+                        class="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold py-3 px-6 rounded-lg hover:from-purple-600 hover:to-pink-600 transition shadow-lg"
+                        id="generateBtn"
+                    >
+                        <i class="fas fa-magic mr-2"></i>
+                        生成開始
+                    </button>
+                    <button 
+                        onclick="this.closest('.fixed').remove()"
+                        class="bg-gray-300 text-gray-700 font-bold py-3 px-6 rounded-lg hover:bg-gray-400 transition"
+                    >
+                        キャンセル
+                    </button>
+                </div>
+                
+                <!-- 結果表示エリア -->
+                <div id="aiResultArea" class="mt-6"></div>
             </div>
         </div>
     `;
+    
+    document.body.appendChild(modal);
+    
+    // イベント一覧を取得して選択肢に追加
+    loadEventsForAI();
+}
+
+// イベント一覧を取得
+async function loadEventsForAI() {
+    try {
+        const response = await axios.get(`${ADMIN_API}/events`);
+        const events = response.data.events || [];
+        const predictionEvents = events.filter(e => e.quiz_type === 'prediction');
+        
+        const select = document.getElementById('aiEventSelect');
+        predictionEvents.forEach(event => {
+            const option = document.createElement('option');
+            option.value = event.id;
+            option.textContent = event.name;
+            select.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Error loading events:', error);
+    }
+}
+
+// AI問題生成実行
+async function generateAIQuestions() {
+    const eventId = document.getElementById('aiEventSelect').value;
+    const theme = document.getElementById('aiThemeInput').value.trim();
+    const count = document.getElementById('aiCountSelect').value;
+    const resultArea = document.getElementById('aiResultArea');
+    const generateBtn = document.getElementById('generateBtn');
+    
+    if (!eventId) {
+        alert('イベントを選択してください');
+        return;
+    }
+    
+    if (!theme) {
+        alert('テーマを入力してください');
+        return;
+    }
+    
+    // ローディング表示
+    generateBtn.disabled = true;
+    generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>生成中...';
+    resultArea.innerHTML = `
+        <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-lg">
+            <p class="text-blue-800">
+                <i class="fas fa-spinner fa-spin mr-2"></i>
+                AIが問題を生成しています... (約5〜10秒)
+            </p>
+        </div>
+    `;
+    
+    try {
+        const response = await axios.post(`${ADMIN_API}/ai/generate-prediction-questions`, {
+            theme,
+            count: parseInt(count),
+            event_id: parseInt(eventId)
+        });
+        
+        const questions = response.data.questions;
+        
+        // 成功表示
+        resultArea.innerHTML = `
+            <div class="bg-green-50 border-l-4 border-green-500 p-4 rounded-lg mb-4">
+                <p class="text-green-800 font-semibold">
+                    <i class="fas fa-check-circle mr-2"></i>
+                    ${questions.length}問の問題を生成しました！
+                </p>
+            </div>
+            
+            <!-- 生成された問題 -->
+            <div class="space-y-4">
+                ${questions.map((q, i) => `
+                    <div class="bg-gray-50 border border-gray-300 rounded-lg p-4">
+                        <div class="flex items-start justify-between mb-2">
+                            <h4 class="font-bold text-gray-800">問題${i + 1}</h4>
+                            <span class="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded">${q.answer_type === 'free_text' ? '記入式' : '4択'}</span>
+                        </div>
+                        <p class="text-gray-700 mb-2">${q.question_text}</p>
+                        <div class="text-sm text-gray-600">
+                            <div>回答例: ${q.example_answer || 'なし'}</div>
+                            <div>参加期限: ${q.participation_deadline_hours}時間後</div>
+                            <div>答え発表: ${q.answer_reveal_hours}時間後</div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+            
+            <button 
+                onclick="savegeneratedQuestions(${eventId}, ${JSON.stringify(questions).replace(/"/g, '&quot;')})"
+                class="w-full bg-green-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-green-700 transition shadow-lg mt-4"
+            >
+                <i class="fas fa-save mr-2"></i>
+                この${questions.length}問を保存する
+            </button>
+        `;
+        
+        generateBtn.disabled = false;
+        generateBtn.innerHTML = '<i class="fas fa-magic mr-2"></i>再生成';
+        
+    } catch (error) {
+        console.error('AI Generation Error:', error);
+        resultArea.innerHTML = `
+            <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg">
+                <p class="text-red-800">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    エラーが発生しました: ${error.response?.data?.error || error.message}
+                </p>
+                ${error.response?.data?.setup_required ? `
+                    <p class="text-red-700 text-sm mt-2">
+                        OpenAI APIキーが設定されていません。.dev.varsファイルでOPENAI_API_KEYを設定してください。
+                    </p>
+                ` : ''}
+            </div>
+        `;
+        generateBtn.disabled = false;
+        generateBtn.innerHTML = '<i class="fas fa-magic mr-2"></i>生成開始';
+    }
+}
+
+// 生成された問題を保存
+async function saveGeneratedQuestions(eventId, questions) {
+    try {
+        for (const q of questions) {
+            const now = new Date();
+            const participationDeadline = new Date(now.getTime() + q.participation_deadline_hours * 60 * 60 * 1000);
+            const answerRevealTime = new Date(now.getTime() + q.answer_reveal_hours * 60 * 60 * 1000);
+            
+            await axios.post(`${ADMIN_API}/prediction/questions`, {
+                event_id: eventId,
+                question_text: q.question_text,
+                answer_type: q.answer_type || 'free_text',
+                pool_group: q.pool_group || 1,
+                participation_deadline: participationDeadline.toISOString().slice(0, 16),
+                answer_reveal_time: answerRevealTime.toISOString().slice(0, 16),
+                verification_source: q.verification_source || 'manual',
+                category_id: 6
+            });
+        }
+        
+        alert(`${questions.length}問を保存しました！`);
+        document.querySelector('.fixed').remove();
+        renderPredictionQuizManagement();
+        
+    } catch (error) {
+        console.error('Save Error:', error);
+        alert('保存に失敗しました: ' + (error.response?.data?.error || error.message));
+    }
 }
 
 // ==================== ナレッジ管理ビュー ====================
@@ -1318,50 +1626,105 @@ async function createPredictionQuestion() {
 // 答え合わせモーダル
 function showVerifyQuestionModal(questionId) {
     const question = currentPredictionQuestions.find(q => q.id === questionId);
+    const isFreeText = question.answer_type === 'free_text';
     
     const modal = document.createElement('div');
     modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
     modal.innerHTML = `
-        <div class="bg-white rounded-2xl p-8 max-w-3xl w-full mx-4">
+        <div class="bg-white rounded-2xl p-8 max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <h3 class="text-2xl font-bold text-gray-800 mb-6">
                 <i class="fas fa-check-circle text-green-600 mr-2"></i>
                 答え合わせ
             </h3>
             
             <div class="bg-gray-50 p-4 rounded-lg mb-6">
-                <p class="font-semibold text-gray-800 mb-2">${question.question_text}</p>
-                <div class="grid grid-cols-2 gap-2 text-sm">
-                    <div>A: ${question.option_a}</div>
-                    <div>B: ${question.option_b}</div>
-                    <div>C: ${question.option_c}</div>
-                    <div>D: ${question.option_d}</div>
+                <div class="flex items-start justify-between mb-2">
+                    <p class="font-semibold text-gray-800 flex-1">${question.question_text}</p>
+                    <span class="${isFreeText ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'} px-3 py-1 rounded-full text-xs font-semibold">
+                        ${isFreeText ? '記入式' : '4択'}
+                    </span>
                 </div>
+                ${!isFreeText ? `
+                    <div class="grid grid-cols-2 gap-2 text-sm mt-3">
+                        <div>A: ${question.option_a}</div>
+                        <div>B: ${question.option_b}</div>
+                        <div>C: ${question.option_c}</div>
+                        <div>D: ${question.option_d}</div>
+                    </div>
+                ` : ''}
             </div>
             
             <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">正解の選択肢</label>
-                    <select 
-                        id="verifyCorrectAnswer" 
-                        class="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                    >
-                        <option value="">-- 選択してください --</option>
-                        <option value="A">A: ${question.option_a}</option>
-                        <option value="B">B: ${question.option_b}</option>
-                        <option value="C">C: ${question.option_c}</option>
-                        <option value="D">D: ${question.option_d}</option>
-                    </select>
-                </div>
-                
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">実際の値（オプション）</label>
-                    <input 
-                        type="text" 
-                        id="verifyActualValue" 
-                        placeholder="例: 田中君はラーメンを食べました"
-                        class="w-full px-4 py-2 border border-gray-300 rounded-lg"
-                    />
-                </div>
+                ${isFreeText ? `
+                    <!-- 記入式の答え -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            <i class="fas fa-pen text-purple-600 mr-2"></i>
+                            実際の答え
+                        </label>
+                        <input 
+                            type="text" 
+                            id="verifyActualValue" 
+                            placeholder="例: カレー、12:30、800"
+                            class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none text-lg"
+                        />
+                        <p class="text-xs text-gray-500 mt-1">
+                            この値を基準にユーザーの回答を判定します
+                        </p>
+                    </div>
+                    
+                    <!-- AI柔軟判定オプション -->
+                    <div class="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-300 rounded-lg p-4">
+                        <div class="flex items-start">
+                            <input 
+                                type="checkbox" 
+                                id="useAIJudgment" 
+                                class="mt-1 mr-3 h-5 w-5 text-purple-600 rounded"
+                                checked
+                            />
+                            <div class="flex-1">
+                                <label for="useAIJudgment" class="font-bold text-purple-900 flex items-center cursor-pointer">
+                                    <i class="fas fa-magic text-purple-600 mr-2"></i>
+                                    AI柔軟判定を使用
+                                </label>
+                                <p class="text-sm text-purple-800 mt-1">
+                                    AIが表記揺れを許容して判定します（例: 「カレー」「カレーライス」を同じと判定）
+                                </p>
+                                <div class="mt-2 text-xs text-purple-700 space-y-1">
+                                    <div>✓ 表記揺れ許容（カレー/カレーライス/チキンカレー）</div>
+                                    <div>✓ 時刻揺れ許容（12:30/12時30分/午後0時半）</div>
+                                    <div>✓ 数値範囲判定（±5%以内なら正解）</div>
+                                    <div>✓ 単位無視（800/800円）</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                ` : `
+                    <!-- 4択の答え -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">正解の選択肢</label>
+                        <select 
+                            id="verifyCorrectAnswer" 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        >
+                            <option value="">-- 選択してください --</option>
+                            <option value="A">A: ${question.option_a}</option>
+                            <option value="B">B: ${question.option_b}</option>
+                            <option value="C">C: ${question.option_c}</option>
+                            <option value="D">D: ${question.option_d}</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">実際の値（オプション）</label>
+                        <input 
+                            type="text" 
+                            id="verifyActualValue" 
+                            placeholder="例: 田中君はラーメンを食べました"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                    </div>
+                `}
                 
                 <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4">
                     <p class="text-sm text-yellow-800">
@@ -1374,10 +1737,11 @@ function showVerifyQuestionModal(questionId) {
             <div class="flex gap-3 mt-6">
                 <button 
                     onclick="verifyQuestion(${questionId})"
-                    class="flex-1 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition font-semibold"
+                    class="flex-1 bg-gradient-to-r from-green-500 to-green-600 text-white py-3 rounded-lg hover:from-green-600 hover:to-green-700 transition font-semibold shadow-lg"
+                    id="verifyBtn"
                 >
                     <i class="fas fa-check mr-2"></i>
-                    答え合わせを実行
+                    ${isFreeText ? 'AI判定を実行' : '答え合わせを実行'}
                 </button>
                 <button 
                     onclick="this.closest('.fixed').remove()"
@@ -1394,32 +1758,78 @@ function showVerifyQuestionModal(questionId) {
 
 // 答え合わせ実行
 async function verifyQuestion(questionId) {
-    const correctAnswer = document.getElementById('verifyCorrectAnswer').value;
-    const actualValue = document.getElementById('verifyActualValue').value.trim();
+    const question = currentPredictionQuestions.find(q => q.id === questionId);
+    const isFreeText = question.answer_type === 'free_text';
+    const verifyBtn = document.getElementById('verifyBtn');
     
-    if (!correctAnswer) {
-        alert('正解の選択肢を選んでください');
-        return;
-    }
-    
-    if (!confirm('本当に答え合わせを実行しますか？\nこの操作は取り消せません。')) {
-        return;
-    }
-    
-    try {
-        const response = await axios.post(`${ADMIN_API}/prediction/questions/${questionId}/verify`, {
-            actual_option: correctAnswer,
-            actual_value: actualValue || correctAnswer,
-            data_source: 'manual',
-            raw_data: JSON.stringify({ verified_at: new Date().toISOString() })
-        });
+    if (isFreeText) {
+        // 記入式の答え合わせ
+        const actualValue = document.getElementById('verifyActualValue').value.trim();
+        const useAI = document.getElementById('useAIJudgment')?.checked;
         
-        alert(`答え合わせが完了しました！\n${response.data.verified_users}人のユーザーの予測を判定しました。`);
-        document.querySelector('.fixed').remove();
-        managePredictionQuestions(currentPredictionEvent.id);
+        if (!actualValue) {
+            alert('実際の答えを入力してください');
+            return;
+        }
         
-    } catch (error) {
-        alert('エラーが発生しました: ' + (error.response?.data?.error || error.message));
+        if (!confirm(`本当に答え合わせを実行しますか？\n実際の答え: ${actualValue}\n${useAI ? 'AI柔軟判定: 有効' : 'AI柔軟判定: 無効'}\nこの操作は取り消せません。`)) {
+            return;
+        }
+        
+        // ローディング表示
+        verifyBtn.disabled = true;
+        verifyBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>判定中...';
+        
+        try {
+            const response = await axios.post(`${ADMIN_API}/prediction/questions/${questionId}/verify`, {
+                actual_value: actualValue,
+                actual_option: '',
+                data_source: 'manual',
+                raw_data: JSON.stringify({ 
+                    verified_at: new Date().toISOString(),
+                    use_ai: useAI
+                })
+            });
+            
+            alert(`答え合わせが完了しました！\n${response.data.verified_users}人のユーザーの予測を判定しました。`);
+            document.querySelector('.fixed').remove();
+            managePredictionQuestions(currentPredictionEvent.id);
+            
+        } catch (error) {
+            verifyBtn.disabled = false;
+            verifyBtn.innerHTML = '<i class="fas fa-check mr-2"></i>AI判定を実行';
+            alert('エラーが発生しました: ' + (error.response?.data?.error || error.message));
+        }
+        
+    } else {
+        // 4択の答え合わせ
+        const correctAnswer = document.getElementById('verifyCorrectAnswer').value;
+        const actualValue = document.getElementById('verifyActualValue').value.trim();
+        
+        if (!correctAnswer) {
+            alert('正解の選択肢を選んでください');
+            return;
+        }
+        
+        if (!confirm('本当に答え合わせを実行しますか？\nこの操作は取り消せません。')) {
+            return;
+        }
+        
+        try {
+            const response = await axios.post(`${ADMIN_API}/prediction/questions/${questionId}/verify`, {
+                actual_option: correctAnswer,
+                actual_value: actualValue || correctAnswer,
+                data_source: 'manual',
+                raw_data: JSON.stringify({ verified_at: new Date().toISOString() })
+            });
+            
+            alert(`答え合わせが完了しました！\n${response.data.verified_users}人のユーザーの予測を判定しました。`);
+            document.querySelector('.fixed').remove();
+            managePredictionQuestions(currentPredictionEvent.id);
+            
+        } catch (error) {
+            alert('エラーが発生しました: ' + (error.response?.data?.error || error.message));
+        }
     }
 }
 
