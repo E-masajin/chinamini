@@ -4,7 +4,9 @@ import analyticsApi from './analytics-api'
 import aiApi from './ai-api'
 
 type Bindings = {
-  DB: D1Database;
+  DB: D1Database
+  OPENAI_API_KEY?: string
+  OPENAI_BASE_URL?: string
 }
 
 const app = new Hono<{ Bindings: Bindings }>()

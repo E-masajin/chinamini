@@ -3,6 +3,8 @@ import { cors } from 'hono/cors'
 
 type Bindings = {
   DB: D1Database
+  OPENAI_API_KEY?: string
+  OPENAI_BASE_URL?: string
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
