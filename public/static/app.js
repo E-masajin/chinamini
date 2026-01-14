@@ -225,6 +225,36 @@ function showQuizSelection() {
                     </div>
                 </div>
                 
+                <!-- その他のコンテンツ -->
+                <div class="bg-white rounded-2xl shadow-lg p-6 mb-8">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">
+                        <i class="fas fa-compass text-indigo-600 mr-2"></i>
+                        その他のコンテンツ
+                    </h3>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <a href="/knowledge" class="flex items-center p-4 bg-emerald-50 rounded-xl hover:bg-emerald-100 transition group">
+                            <div class="w-12 h-12 bg-emerald-500 rounded-lg flex items-center justify-center mr-4 group-hover:scale-110 transition-transform">
+                                <i class="fas fa-book-open text-2xl text-white"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-gray-800">ナレッジベース</h4>
+                                <p class="text-sm text-gray-600">社内の知識を学ぼう</p>
+                            </div>
+                            <i class="fas fa-chevron-right text-emerald-500 ml-auto"></i>
+                        </a>
+                        <a href="/people" class="flex items-center p-4 bg-purple-50 rounded-xl hover:bg-purple-100 transition group">
+                            <div class="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center mr-4 group-hover:scale-110 transition-transform">
+                                <i class="fas fa-users text-2xl text-white"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-gray-800">社内のなかま</h4>
+                                <p class="text-sm text-gray-600">みんなのことを知ろう</p>
+                            </div>
+                            <i class="fas fa-chevron-right text-purple-500 ml-auto"></i>
+                        </a>
+                    </div>
+                </div>
+                
                 <!-- 注意書き -->
                 <div class="text-center">
                     <p class="text-sm text-gray-600">
