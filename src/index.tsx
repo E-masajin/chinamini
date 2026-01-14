@@ -64,4 +64,46 @@ app.get('/', (c) => {
   `)
 })
 
+// ユーザー画面（ナレッジ閲覧）
+app.get('/knowledge', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="ja">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>ナレッジベース - いつでもクイズ</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    </head>
+    <body class="bg-gradient-to-br from-emerald-50 to-teal-100 min-h-screen">
+        <div id="app" class="container mx-auto px-4 py-8 max-w-5xl"></div>
+        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <script src="/static/knowledge.js"></script>
+    </body>
+    </html>
+  `)
+})
+
+// ユーザー画面（コミュニケーション / 人物プロフィール）
+app.get('/people', (c) => {
+  return c.html(`
+    <!DOCTYPE html>
+    <html lang="ja">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>社内のなかま - いつでもクイズ</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
+    </head>
+    <body class="bg-gradient-to-br from-purple-50 to-pink-100 min-h-screen">
+        <div id="app" class="container mx-auto px-4 py-8 max-w-5xl"></div>
+        <script src="https://cdn.jsdelivr.net/npm/axios@1.6.0/dist/axios.min.js"></script>
+        <script src="/static/people.js"></script>
+    </body>
+    </html>
+  `)
+})
+
 export default app

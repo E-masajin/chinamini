@@ -446,6 +446,112 @@ app.get('/api/communication/persons/:personId', async (c) => {
 })
 
 /**
+ * ユーザー向けナレッジ一覧取得
+ * GET /api/knowledge
+ */
+app.get('/api/knowledge', async (c) => {
+  const { DB } = c.env
+  const category = c.req.query('category')
+  
+  try {
+    let query = `
+      SELECT 
+        id, title, content, category, recognition_rate, value_score, status, created_at
+      FROM knowledge_base
+      WHERE status = 'published'
+    `
+    
+    if (category) {
+      query += ` AND category = '${category}'`
+    }
+    
+    query += ` ORDER BY value_score DESC, recognition_rate DESC`
+    
+    const result = await DB.prepare(query).all()
+    
+    return c.json({ 
+      success: true,
+      knowledge: result.results 
+    })
+    
+  } catch (error: any) {
+    console.error('Get Knowledge Error:', error)
+    return c.json({ error: error.message }, 500)
+  }
+})
+
+/**
+ * ユーザー向けナレッジ詳細取得
+ * GET /api/knowledge/:id
+ */
+app.get('/api/knowledge/:id', async (c) => {
+  const { DB } = c.env
+  const id = c.req.param('id')
+  
+  try {
+    const knowledge = await DB.prepare(`
+      SELECT * FROM knowledge_base WHERE id = ? AND status = 'published'
+    `).bind(id).first()
+    
+    if (!knowledge) {
+      return c.json({ error: 'ナレッジが見つかりません' }, 404)
+    }
+    
+    return c.json({ 
+      success: true,
+      knowledge 
+    })
+    
+  } catch (error: any) {
+    console.error('Get Knowledge Detail Error:', error)
+    return c.json({ error: error.message }, 500)
+  }
+})
+
+/**
+ * ユーザー向けナレッジカテゴリ一覧取得
+ * GET /api/knowledge/categories
+ */
+app.get('/api/knowledge-categories', async (c) => {
+  const { DB } = c.env
+  
+  try {
+    const result = await DB.prepare(`
+      SELECT 
+        category,
+        COUNT(*) as count
+      FROM knowledge_base
+      WHERE status = 'published'
+      GROUP BY category
+      ORDER BY count DESC
+    `).all()
+    
+    // カテゴリ名を日本語に変換
+    const categoryLabels: { [key: string]: string } = {
+      company_history: '社史',
+      knowledge: '業務ナレッジ',
+      communication: 'コミュニケーション',
+      compliance: 'コンプライアンス'
+    }
+    
+    const categories = result.results.map((cat: any) => ({
+      id: cat.category,
+      name: categoryLabels[cat.category] || cat.category,
+      count: cat.count
+    }))
+    
+    return c.json({ 
+      success: true,
+      categories 
+    })
+    
+  } catch (error: any) {
+    console.error('Get Knowledge Categories Error:', error)
+    return c.json({ error: error.message }, 500)
+  }
+})
+
+/**
  * 会話のきっかけを取得（ランダム）
  * GET /api/communication/conversation-starters
  */
