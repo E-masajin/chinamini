@@ -171,20 +171,20 @@ app.post('/api/prediction/events/:eventId/submit', async (c) => {
     
     // 参加ステータスを更新
     await DB.prepare(`
-      INSERT OR REPLACE INTO user_event_status (
+      INSERT INTO user_event_status (
         user_id,
         event_id,
         has_participated,
-        participated_at,
+        has_completed,
         score,
-        questions_count
-      ) VALUES (?, ?, ?, datetime('now'), ?, ?)
+        started_at
+      ) VALUES (?, ?, 1, 0, 0, datetime('now'))
+      ON CONFLICT(user_id, event_id) DO UPDATE SET
+        has_participated = 1,
+        started_at = COALESCE(started_at, datetime('now'))
     `).bind(
       user_id,
-      eventId,
-      1,
-      0, // 予測問題は答え合わせまでスコア不明
-      predictions.length
+      eventId
     ).run()
     
     return c.json({
@@ -375,6 +375,27 @@ app.post('/admin/api/prediction/questions/:questionId/verify', async (c) => {
       }
     }
     
+    // コミュニケーション情報を抽出・蓄積
+    const questionData: any = await DB.prepare(`
+      SELECT question_text FROM questions WHERE id = ?
+    `).bind(questionId).first()
+    
+    if (questionData) {
+      try {
+        // 内部でコミュニケーション情報を抽出
+        await extractAndStoreCommunicationInfo(
+          DB,
+          parseInt(questionId),
+          questionData.question_text,
+          isFreeText ? actual_value : actual_option,
+          c.env
+        )
+      } catch (commError) {
+        console.error('Communication extraction error (non-fatal):', commError)
+        // コミュニケーション情報の抽出失敗は答え合わせ処理を止めない
+      }
+    }
+    
     return c.json({
       success: true,
       message: '答え合わせが完了しました',
@@ -386,6 +407,132 @@ app.post('/admin/api/prediction/questions/:questionId/verify', async (c) => {
     return c.json({ error: error.message }, 500)
   }
 })
+
+/**
+ * コミュニケーション情報の抽出・蓄積（内部関数）
+ */
+async function extractAndStoreCommunicationInfo(
+  DB: D1Database,
+  questionId: number,
+  questionText: string,
+  actualValue: string,
+  env: Bindings
+): Promise<void> {
+  // 人物名を抽出（「〇〇君」「〇〇さん」パターン）
+  const personMatch = questionText.match(/([^\s「」（）]{1,10})(君|さん|氏|部長|課長|社長)/)?.[1]
+  
+  if (!personMatch) {
+    return // 人物名が見つからない場合はスキップ
+  }
+  
+  // カテゴリを推測
+  let category = 'other'
+  let attribute = 'value'
+  
+  if (questionText.includes('ランチ') || questionText.includes('昼食') || questionText.includes('食べ')) {
+    category = 'lunch'
+    attribute = 'food'
+  } else if (questionText.includes('趣味') || questionText.includes('好き')) {
+    category = 'hobby'
+    attribute = 'interest'
+  } else if (questionText.includes('時') || questionText.includes('いつ')) {
+    category = 'schedule'
+    attribute = 'time'
+  } else if (questionText.includes('飲み物') || questionText.includes('飲む')) {
+    category = 'preference'
+    attribute = 'drink'
+  }
+  
+  // 人物プロフィールを取得または作成
+  let personId: number
+  const existingPerson = await DB.prepare(`
+    SELECT id FROM person_profiles WHERE name = ?
+  `).bind(personMatch).first()
+  
+  if (existingPerson) {
+    personId = existingPerson.id as number
+  } else {
+    const result = await DB.prepare(`
+      INSERT INTO person_profiles (name) VALUES (?)
+    `).bind(personMatch).run()
+    personId = result.meta.last_row_id as number
+  }
+  
+  // 問題と人物のマッピングを保存
+  await DB.prepare(`
+    INSERT OR IGNORE INTO question_person_mapping (question_id, person_id, extracted_category, extracted_attribute)
+    VALUES (?, ?, ?, ?)
+  `).bind(questionId, personId, category, attribute).run()
+  
+  // 特性を記録（同じ値の場合はカウント増加）
+  const existingTrait = await DB.prepare(`
+    SELECT id, occurrence_count FROM person_traits
+    WHERE person_id = ? AND category = ? AND attribute = ? AND value = ?
+  `).bind(personId, category, attribute, actualValue).first()
+  
+  let count = 1
+  if (existingTrait) {
+    count = (existingTrait.occurrence_count as number) + 1
+    await DB.prepare(`
+      UPDATE person_traits
+      SET occurrence_count = ?, last_observed_at = datetime('now')
+      WHERE id = ?
+    `).bind(count, existingTrait.id).run()
+  } else {
+    await DB.prepare(`
+      INSERT INTO person_traits (person_id, category, attribute, value, source_question_id)
+      VALUES (?, ?, ?, ?, ?)
+    `).bind(personId, category, attribute, actualValue, questionId).run()
+  }
+  
+  // 洞察を更新（2回以上で生成）
+  if (count >= 2) {
+    let title = ''
+    let description = ''
+    let conversationHints: string[] = []
+    
+    if (category === 'lunch') {
+      title = `${actualValue}好き`
+      description = `${personMatch}さんはランチで${actualValue}をよく食べます（${count}回確認）`
+      conversationHints = [
+        `${personMatch}さん、${actualValue}好きなんですね！オススメの店ありますか？`,
+        `今度一緒に${actualValue}食べに行きませんか？`,
+        `${actualValue}といえば、どこがお気に入りですか？`
+      ]
+    } else if (category === 'hobby') {
+      title = `趣味: ${actualValue}`
+      description = `${personMatch}さんの趣味は${actualValue}のようです（${count}回確認）`
+      conversationHints = [
+        `${personMatch}さん、${actualValue}が趣味なんですね！`,
+        `${actualValue}について教えてください！`
+      ]
+    } else {
+      title = `${category}: ${actualValue}`
+      description = `${personMatch}さんは${actualValue}に関連があります（${count}回確認）`
+    }
+    
+    const confidenceScore = Math.min(count / 5, 1)
+    const hintsJson = JSON.stringify(conversationHints)
+    
+    const existingInsight = await DB.prepare(`
+      SELECT id FROM person_insights WHERE person_id = ? AND title = ?
+    `).bind(personId, title).first()
+    
+    if (existingInsight) {
+      await DB.prepare(`
+        UPDATE person_insights
+        SET description = ?, confidence_score = ?, trait_count = ?, 
+            conversation_hints = ?, updated_at = datetime('now')
+        WHERE id = ?
+      `).bind(description, confidenceScore, count, hintsJson, existingInsight.id).run()
+    } else {
+      await DB.prepare(`
+        INSERT INTO person_insights (person_id, insight_type, title, description, conversation_hints, confidence_score, trait_count)
+        VALUES (?, 'conversation_starter', ?, ?, ?, ?, ?)
+      `).bind(personId, title, description, hintsJson, confidenceScore, count).run()
+    }
+  }
+}
 
 /**
  * 予測ランキング取得

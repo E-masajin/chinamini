@@ -7,6 +7,7 @@ import aiPredictionApi from './ai-prediction-api'
 import learningApi from './learning-api'
 import knowledgeApi from './knowledge-api'
 import secureApi from './secure-api'
+import communicationApi from './communication-api'
 
 const app = new Hono()
 
@@ -19,6 +20,7 @@ app.route('/', gamificationApi)
 app.route('/', aiPredictionApi)
 app.route('/', learningApi)
 app.route('/', knowledgeApi)
+app.route('/', communicationApi)
 
 // 管理者画面
 app.get('/admin', (c) => {
