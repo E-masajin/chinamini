@@ -102,6 +102,8 @@ app.post('/admin/api/events', async (c) => {
     const questions_per_user = validateInteger(body.questions_per_user, '問題数', 1, 100)
     const mode = validateRequiredString(body.mode, 'モード', 20)
     const min_participants = validateInteger(body.min_participants || 1, '最小参加者数', 1, 1000)
+    const quiz_type = body.quiz_type || 'async' // async または prediction
+    const is_active = body.is_active !== undefined ? (body.is_active ? 1 : 0) : 1
 
     // 日付の整合性チェック
     if (new Date(start_date) >= new Date(end_date)) {
@@ -113,10 +115,15 @@ app.post('/admin/api/events', async (c) => {
       throw new ValidationError('モードは individual, team, company のいずれかを選択してください', 'mode')
     }
 
+    // quiz_typeの検証
+    if (!['async', 'prediction'].includes(quiz_type)) {
+      throw new ValidationError('クイズ種別は async または prediction のいずれかを選択してください', 'quiz_type')
+    }
+
     const result = await execute(DB, `
-      INSERT INTO events (name, description, start_date, end_date, questions_per_user, mode, min_participants, is_active)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-    `, name, description, start_date, end_date, questions_per_user, mode, min_participants)
+      INSERT INTO events (name, description, start_date, end_date, questions_per_user, mode, min_participants, quiz_type, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, name, description, start_date, end_date, questions_per_user, mode, min_participants, quiz_type, is_active)
 
     return c.json({ success: true, eventId: result.lastRowId })
   } catch (error) {
@@ -128,16 +135,37 @@ app.post('/admin/api/events', async (c) => {
 app.put('/admin/api/events/:id', async (c) => {
   const { DB } = c.env
   const eventId = c.req.param('id')
-  const { name, description, start_date, end_date, questions_per_user, mode, min_participants, is_active } = await c.req.json()
+  
+  try {
+    const body = await c.req.json()
+    
+    // 入力検証
+    const name = sanitizeString(body.name, 'イベント名', 100)
+    const description = sanitizeOptionalString(body.description, '説明', 1000)
+    const start_date = validateDate(body.start_date, '開始日')
+    const end_date = validateDate(body.end_date, '終了日')
+    const questions_per_user = validateInteger(body.questions_per_user, '問題数', 1, 100)
+    const mode = validateRequiredString(body.mode, 'モード', 20)
+    const min_participants = validateInteger(body.min_participants || 1, '最小参加者数', 1, 1000)
+    const quiz_type = body.quiz_type || 'async'
+    const is_active = body.is_active !== undefined ? (body.is_active ? 1 : 0) : 1
 
-  await DB.prepare(`
-    UPDATE events 
-    SET name = ?, description = ?, start_date = ?, end_date = ?, 
-        questions_per_user = ?, mode = ?, min_participants = ?, is_active = ?
-    WHERE id = ?
-  `).bind(name, description, start_date, end_date, questions_per_user, mode, min_participants, is_active, eventId).run()
+    // 日付の整合性チェック
+    if (new Date(start_date) >= new Date(end_date)) {
+      throw new ValidationError('終了日は開始日より後の日付を設定してください', 'end_date')
+    }
 
-  return c.json({ success: true })
+    await execute(DB, `
+      UPDATE events 
+      SET name = ?, description = ?, start_date = ?, end_date = ?, 
+          questions_per_user = ?, mode = ?, min_participants = ?, quiz_type = ?, is_active = ?
+      WHERE id = ?
+    `, name, description, start_date, end_date, questions_per_user, mode, min_participants, quiz_type, is_active, eventId)
+
+    return c.json({ success: true })
+  } catch (error) {
+    return errorResponse(c, error)
+  }
 })
 
 // イベント削除

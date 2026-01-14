@@ -385,7 +385,7 @@ async function renderAsyncQuizManagement() {
                         いつでもクイズ管理
                     </h2>
                     <button 
-                        onclick="alert('イベント作成機能は準備中です')"
+                        onclick="showCreateAsyncEventModal()"
                         class="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition shadow-md"
                     >
                         <i class="fas fa-plus mr-2"></i>
@@ -419,19 +419,31 @@ async function renderAsyncQuizManagement() {
                                             </p>
                                         </div>
                                         <div class="flex flex-col gap-2 ml-4">
-                                            <button class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm">
+                                            <button 
+                                                onclick="editEvent(${event.id})"
+                                                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+                                            >
                                                 <i class="fas fa-edit mr-1"></i>
                                                 編集
                                             </button>
-                                            <button class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm">
+                                            <button 
+                                                onclick="manageAsyncQuestions(${event.id})"
+                                                class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm"
+                                            >
                                                 <i class="fas fa-question-circle mr-1"></i>
                                                 問題管理
                                             </button>
-                                            <button class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm">
+                                            <button 
+                                                onclick="viewAsyncParticipants(${event.id})"
+                                                class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm"
+                                            >
                                                 <i class="fas fa-users mr-1"></i>
                                                 参加者
                                             </button>
-                                            <button class="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition text-sm">
+                                            <button 
+                                                onclick="viewAsyncStats(${event.id})"
+                                                class="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition text-sm"
+                                            >
                                                 <i class="fas fa-chart-bar mr-1"></i>
                                                 統計
                                             </button>
@@ -447,7 +459,7 @@ async function renderAsyncQuizManagement() {
                         <h3 class="text-xl font-bold text-gray-800 mb-2">イベントがありません</h3>
                         <p class="text-gray-600 mb-6">新規イベントを作成してクイズを開始しましょう</p>
                         <button 
-                            onclick="alert('イベント作成機能は準備中です')"
+                            onclick="showCreateAsyncEventModal()"
                             class="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition"
                         >
                             <i class="fas fa-plus mr-2"></i>
@@ -1953,6 +1965,221 @@ async function verifyQuestion(questionId) {
     }
 }
 
+// イベント編集モーダル
+function editEvent(eventId) {
+    // イベント情報を取得
+    axios.get(`${ADMIN_API}/events`)
+        .then(response => {
+            const event = response.data.events.find(e => e.id === eventId);
+            if (!event) {
+                alert('イベントが見つかりません');
+                return;
+            }
+            showEditEventModal(event);
+        })
+        .catch(error => {
+            alert('エラーが発生しました: ' + (error.response?.data?.error || error.message));
+        });
+}
+
+// イベント編集モーダル表示
+function showEditEventModal(event) {
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    modal.innerHTML = `
+        <div class="bg-white rounded-2xl p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <h3 class="text-2xl font-bold text-gray-800 mb-6">
+                <i class="fas fa-edit text-blue-600 mr-2"></i>
+                イベント編集
+            </h3>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">イベント名</label>
+                    <input 
+                        type="text" 
+                        id="editEventName" 
+                        value="${event.name || ''}"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    />
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">説明</label>
+                    <textarea 
+                        id="editEventDesc" 
+                        rows="3"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    >${event.description || ''}</textarea>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">開始日時</label>
+                        <input 
+                            type="datetime-local" 
+                            id="editEventStart" 
+                            value="${event.start_date ? new Date(event.start_date).toISOString().slice(0, 16) : ''}"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">終了日時</label>
+                        <input 
+                            type="datetime-local" 
+                            id="editEventEnd" 
+                            value="${event.end_date ? new Date(event.end_date).toISOString().slice(0, 16) : ''}"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">問題数</label>
+                        <input 
+                            type="number" 
+                            id="editEventQuestions" 
+                            value="${event.questions_per_user || 10}"
+                            min="1"
+                            max="100"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">モード</label>
+                        <select 
+                            id="editEventMode" 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        >
+                            <option value="individual" ${event.mode === 'individual' ? 'selected' : ''}>個人戦</option>
+                            <option value="team" ${event.mode === 'team' ? 'selected' : ''}>チーム戦</option>
+                            <option value="company" ${event.mode === 'company' ? 'selected' : ''}>企業戦</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">クイズ種別</label>
+                        <select 
+                            id="editEventQuizType" 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        >
+                            <option value="async" ${(event.quiz_type || 'async') === 'async' ? 'selected' : ''}>いつでもクイズ</option>
+                            <option value="prediction" ${event.quiz_type === 'prediction' ? 'selected' : ''}>クイズ○○後（未来予測型）</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">最低参加人数</label>
+                        <input 
+                            type="number" 
+                            id="editEventMinParticipants" 
+                            value="${event.min_participants || 1}"
+                            min="1"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                    </div>
+                </div>
+                
+                <div class="flex items-center">
+                    <input 
+                        type="checkbox" 
+                        id="editEventActive" 
+                        ${event.is_active ? 'checked' : ''}
+                        class="mr-2 h-5 w-5"
+                    />
+                    <label class="text-sm font-semibold text-gray-700">アクティブ（有効）</label>
+                </div>
+            </div>
+            
+            <div class="flex gap-3 mt-6">
+                <button 
+                    onclick="updateEvent(${event.id})"
+                    class="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition font-semibold"
+                >
+                    <i class="fas fa-save mr-2"></i>
+                    保存
+                </button>
+                <button 
+                    onclick="deleteEventConfirm(${event.id})"
+                    class="bg-red-600 text-white py-3 px-6 rounded-lg hover:bg-red-700 transition font-semibold"
+                >
+                    <i class="fas fa-trash mr-2"></i>
+                    削除
+                </button>
+                <button 
+                    onclick="this.closest('.fixed').remove()"
+                    class="flex-1 bg-gray-500 text-white py-3 rounded-lg hover:bg-gray-600 transition font-semibold"
+                >
+                    キャンセル
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+// イベント更新
+async function updateEvent(eventId) {
+    const name = document.getElementById('editEventName').value.trim();
+    const description = document.getElementById('editEventDesc').value.trim();
+    const startDate = document.getElementById('editEventStart').value;
+    const endDate = document.getElementById('editEventEnd').value;
+    const questionsPerUser = parseInt(document.getElementById('editEventQuestions').value);
+    const mode = document.getElementById('editEventMode').value;
+    const quizType = document.getElementById('editEventQuizType').value;
+    const minParticipants = parseInt(document.getElementById('editEventMinParticipants').value);
+    const isActive = document.getElementById('editEventActive').checked;
+    
+    if (!name) {
+        alert('イベント名を入力してください');
+        return;
+    }
+    
+    try {
+        await axios.put(`${ADMIN_API}/events/${eventId}`, {
+            name,
+            description,
+            start_date: startDate,
+            end_date: endDate,
+            questions_per_user: questionsPerUser,
+            mode,
+            quiz_type: quizType,
+            min_participants: minParticipants,
+            is_active: isActive
+        });
+        
+        alert('イベントを更新しました！');
+        document.querySelector('.fixed').remove();
+        renderView(); // 現在のビューを再描画
+        
+    } catch (error) {
+        alert('エラーが発生しました: ' + (error.response?.data?.error || error.message));
+    }
+}
+
+// イベント削除確認
+function deleteEventConfirm(eventId) {
+    if (!confirm('本当にこのイベントを削除しますか？\nこの操作は取り消せません。')) {
+        return;
+    }
+    
+    axios.delete(`${ADMIN_API}/events/${eventId}`)
+        .then(() => {
+            alert('イベントを削除しました');
+            document.querySelector('.fixed').remove();
+            renderView();
+        })
+        .catch(error => {
+            alert('エラーが発生しました: ' + (error.response?.data?.error || error.message));
+        });
+}
+
 // 参加者一覧（簡易版）
 async function viewPredictionParticipants(eventId) {
     alert('参加者一覧機能は準備中です');
@@ -2548,4 +2775,653 @@ async function generateQuestionsFromContent() {
             </div>
         `;
     }
+}
+
+// ==================== いつでもクイズ用機能 ====================
+
+// いつでもクイズ用イベント作成モーダル
+function showCreateAsyncEventModal() {
+    const now = new Date();
+    const endDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7日後
+    
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    modal.innerHTML = `
+        <div class="bg-white rounded-2xl p-8 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <h3 class="text-2xl font-bold text-gray-800 mb-6">
+                <i class="fas fa-clock text-indigo-600 mr-2"></i>
+                新規いつでもクイズ作成
+            </h3>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">イベント名</label>
+                    <input 
+                        type="text" 
+                        id="asyncEventName" 
+                        placeholder="例: 4月社内クイズ大会"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    />
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">説明</label>
+                    <textarea 
+                        id="asyncEventDesc" 
+                        placeholder="例: 今月の社内ナレッジを楽しく学べるクイズです！"
+                        rows="3"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    ></textarea>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">開始日時</label>
+                        <input 
+                            type="datetime-local" 
+                            id="asyncEventStart" 
+                            value="${now.toISOString().slice(0, 16)}"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">終了日時</label>
+                        <input 
+                            type="datetime-local" 
+                            id="asyncEventEnd" 
+                            value="${endDate.toISOString().slice(0, 16)}"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">問題数（1人あたり）</label>
+                        <input 
+                            type="number" 
+                            id="asyncEventQuestions" 
+                            value="10"
+                            min="1"
+                            max="100"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">対戦モード</label>
+                        <select 
+                            id="asyncEventMode" 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        >
+                            <option value="individual">個人戦</option>
+                            <option value="team">チーム戦</option>
+                            <option value="company">企業戦</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">最小参加人数（チーム/企業戦時）</label>
+                    <input 
+                        type="number" 
+                        id="asyncEventMinParticipants" 
+                        value="1"
+                        min="1"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    />
+                </div>
+            </div>
+            
+            <div class="flex gap-3 mt-6">
+                <button 
+                    onclick="createAsyncEvent()"
+                    class="flex-1 bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 transition font-semibold"
+                >
+                    <i class="fas fa-check mr-2"></i>
+                    作成
+                </button>
+                <button 
+                    onclick="this.closest('.fixed').remove()"
+                    class="flex-1 bg-gray-500 text-white py-3 rounded-lg hover:bg-gray-600 transition font-semibold"
+                >
+                    キャンセル
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+// いつでもクイズイベント作成
+async function createAsyncEvent() {
+    const name = document.getElementById('asyncEventName').value.trim();
+    const description = document.getElementById('asyncEventDesc').value.trim();
+    const startDate = document.getElementById('asyncEventStart').value;
+    const endDate = document.getElementById('asyncEventEnd').value;
+    const questionsPerUser = parseInt(document.getElementById('asyncEventQuestions').value);
+    const mode = document.getElementById('asyncEventMode').value;
+    const minParticipants = parseInt(document.getElementById('asyncEventMinParticipants').value);
+    
+    if (!name) {
+        alert('イベント名を入力してください');
+        return;
+    }
+    
+    try {
+        await axios.post(`${ADMIN_API}/events`, {
+            name,
+            description,
+            start_date: startDate,
+            end_date: endDate,
+            is_active: 1,
+            questions_per_user: questionsPerUser,
+            mode,
+            min_participants: minParticipants,
+            quiz_type: 'async'  // いつでもクイズタイプ
+        });
+        
+        alert('イベントを作成しました！');
+        document.querySelector('.fixed').remove();
+        renderAsyncQuizManagement();
+        
+    } catch (error) {
+        alert('エラーが発生しました: ' + (error.response?.data?.error || error.message));
+    }
+}
+
+// いつでもクイズ問題管理
+let currentAsyncEvent = null;
+let currentAsyncQuestions = [];
+
+async function manageAsyncQuestions(eventId) {
+    try {
+        // イベント情報を取得
+        const eventResponse = await axios.get(`${ADMIN_API}/events`);
+        currentAsyncEvent = eventResponse.data.events.find(e => e.id === eventId);
+        
+        // 問題一覧を取得
+        const questionsResponse = await axios.get(`${ADMIN_API}/events/${eventId}/questions`);
+        currentAsyncQuestions = questionsResponse.data.questions || [];
+        
+        const contentArea = document.getElementById('content-area');
+        contentArea.innerHTML = `
+            <div class="max-w-7xl mx-auto">
+                <div class="mb-6">
+                    <button 
+                        onclick="renderAsyncQuizManagement()"
+                        class="text-indigo-600 hover:text-indigo-800 transition"
+                    >
+                        <i class="fas fa-arrow-left mr-2"></i>
+                        イベント一覧に戻る
+                    </button>
+                </div>
+                
+                <div class="flex justify-between items-center mb-8">
+                    <h2 class="text-2xl font-bold text-gray-800">
+                        <i class="fas fa-question-circle text-indigo-600 mr-2"></i>
+                        問題管理：${currentAsyncEvent.name}
+                    </h2>
+                    <button 
+                        onclick="showCreateAsyncQuestionModal()"
+                        class="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition shadow-md"
+                    >
+                        <i class="fas fa-plus mr-2"></i>
+                        問題を追加
+                    </button>
+                </div>
+                
+                ${currentAsyncQuestions.length > 0 ? `
+                    <div class="space-y-4">
+                        ${currentAsyncQuestions.map((q, i) => `
+                            <div class="bg-white p-6 rounded-xl shadow-md">
+                                <div class="flex justify-between items-start mb-4">
+                                    <div class="flex-1">
+                                        <div class="flex items-center gap-2 mb-2">
+                                            <span class="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-xs font-semibold">
+                                                問題 ${i + 1}
+                                            </span>
+                                            <span class="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-xs font-semibold">
+                                                問題群 ${q.pool_group}
+                                            </span>
+                                        </div>
+                                        <h3 class="text-lg font-bold text-gray-800 mb-2">${q.question_text}</h3>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <button 
+                                            onclick="editAsyncQuestion(${q.id})"
+                                            class="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm"
+                                        >
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button 
+                                            onclick="deleteAsyncQuestion(${q.id})"
+                                            class="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition text-sm"
+                                        >
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="grid grid-cols-2 gap-2 mb-4">
+                                    <div class="text-sm ${q.correct_answer === 'A' ? 'bg-green-100 text-green-800 font-semibold' : 'bg-gray-50 text-gray-700'} p-2 rounded">
+                                        <span class="font-semibold">A:</span> ${q.option_a}
+                                    </div>
+                                    <div class="text-sm ${q.correct_answer === 'B' ? 'bg-green-100 text-green-800 font-semibold' : 'bg-gray-50 text-gray-700'} p-2 rounded">
+                                        <span class="font-semibold">B:</span> ${q.option_b}
+                                    </div>
+                                    <div class="text-sm ${q.correct_answer === 'C' ? 'bg-green-100 text-green-800 font-semibold' : 'bg-gray-50 text-gray-700'} p-2 rounded">
+                                        <span class="font-semibold">C:</span> ${q.option_c}
+                                    </div>
+                                    <div class="text-sm ${q.correct_answer === 'D' ? 'bg-green-100 text-green-800 font-semibold' : 'bg-gray-50 text-gray-700'} p-2 rounded">
+                                        <span class="font-semibold">D:</span> ${q.option_d}
+                                    </div>
+                                </div>
+                                
+                                <div class="text-sm text-gray-500">
+                                    <span class="bg-green-100 text-green-800 px-2 py-1 rounded font-semibold">
+                                        正解: ${q.correct_answer}
+                                    </span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : `
+                    <div class="bg-white rounded-xl shadow-md p-12 text-center">
+                        <i class="fas fa-question-circle text-6xl text-gray-300 mb-4"></i>
+                        <h3 class="text-xl font-bold text-gray-800 mb-2">問題がありません</h3>
+                        <p class="text-gray-600 mb-6">最初の問題を作成しましょう</p>
+                        <button 
+                            onclick="showCreateAsyncQuestionModal()"
+                            class="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition"
+                        >
+                            <i class="fas fa-plus mr-2"></i>
+                            問題を追加
+                        </button>
+                    </div>
+                `}
+            </div>
+        `;
+        
+    } catch (error) {
+        alert('エラーが発生しました: ' + (error.response?.data?.error || error.message));
+    }
+}
+
+// いつでもクイズ問題作成モーダル
+function showCreateAsyncQuestionModal() {
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto';
+    modal.innerHTML = `
+        <div class="bg-white rounded-2xl p-8 max-w-3xl w-full mx-4 my-8">
+            <h3 class="text-2xl font-bold text-gray-800 mb-6">
+                <i class="fas fa-plus-circle text-indigo-600 mr-2"></i>
+                新規問題作成
+            </h3>
+            
+            <div class="space-y-4">
+                <!-- 問題文 -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">問題文</label>
+                    <textarea 
+                        id="asyncQuestionText" 
+                        placeholder="問題文を入力してください"
+                        rows="3"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    ></textarea>
+                </div>
+                
+                <!-- 選択肢 -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">選択肢 A</label>
+                        <input 
+                            type="text" 
+                            id="asyncOptionA" 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">選択肢 B</label>
+                        <input 
+                            type="text" 
+                            id="asyncOptionB" 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">選択肢 C</label>
+                        <input 
+                            type="text" 
+                            id="asyncOptionC" 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">選択肢 D</label>
+                        <input 
+                            type="text" 
+                            id="asyncOptionD" 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                    </div>
+                </div>
+                
+                <!-- 正解 -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">正解</label>
+                        <select 
+                            id="asyncCorrectAnswer" 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        >
+                            <option value="A">A</option>
+                            <option value="B">B</option>
+                            <option value="C">C</option>
+                            <option value="D">D</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">問題群 (0-9)</label>
+                        <input 
+                            type="number" 
+                            id="asyncPoolGroup" 
+                            value="0"
+                            min="0"
+                            max="9"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                        <p class="text-xs text-gray-500 mt-1">ユーザーIDの末尾に対応（カンニング防止用）</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex gap-3 mt-6">
+                <button 
+                    onclick="createAsyncQuestion()"
+                    class="flex-1 bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 transition font-semibold"
+                >
+                    <i class="fas fa-check mr-2"></i>
+                    作成
+                </button>
+                <button 
+                    onclick="this.closest('.fixed').remove()"
+                    class="flex-1 bg-gray-500 text-white py-3 rounded-lg hover:bg-gray-600 transition font-semibold"
+                >
+                    キャンセル
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+// 問題作成
+async function createAsyncQuestion() {
+    const questionText = document.getElementById('asyncQuestionText').value.trim();
+    const optionA = document.getElementById('asyncOptionA').value.trim();
+    const optionB = document.getElementById('asyncOptionB').value.trim();
+    const optionC = document.getElementById('asyncOptionC').value.trim();
+    const optionD = document.getElementById('asyncOptionD').value.trim();
+    const correctAnswer = document.getElementById('asyncCorrectAnswer').value;
+    const poolGroup = parseInt(document.getElementById('asyncPoolGroup').value);
+    
+    if (!questionText || !optionA || !optionB || !optionC || !optionD) {
+        alert('すべての項目を入力してください');
+        return;
+    }
+    
+    try {
+        await axios.post(`${ADMIN_API}/events/${currentAsyncEvent.id}/questions`, {
+            question_text: questionText,
+            option_a: optionA,
+            option_b: optionB,
+            option_c: optionC,
+            option_d: optionD,
+            correct_answer: correctAnswer,
+            pool_group: poolGroup
+        });
+        
+        alert('問題を作成しました！');
+        document.querySelector('.fixed').remove();
+        manageAsyncQuestions(currentAsyncEvent.id);
+        
+    } catch (error) {
+        alert('エラーが発生しました: ' + (error.response?.data?.error || error.message));
+    }
+}
+
+// 問題編集
+async function editAsyncQuestion(questionId) {
+    const question = currentAsyncQuestions.find(q => q.id === questionId);
+    if (!question) return;
+    
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto';
+    modal.innerHTML = `
+        <div class="bg-white rounded-2xl p-8 max-w-3xl w-full mx-4 my-8">
+            <h3 class="text-2xl font-bold text-gray-800 mb-6">
+                <i class="fas fa-edit text-blue-600 mr-2"></i>
+                問題編集
+            </h3>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">問題文</label>
+                    <textarea 
+                        id="editAsyncQuestionText" 
+                        rows="3"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                    >${question.question_text}</textarea>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">選択肢 A</label>
+                        <input 
+                            type="text" 
+                            id="editAsyncOptionA" 
+                            value="${question.option_a}"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">選択肢 B</label>
+                        <input 
+                            type="text" 
+                            id="editAsyncOptionB" 
+                            value="${question.option_b}"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">選択肢 C</label>
+                        <input 
+                            type="text" 
+                            id="editAsyncOptionC" 
+                            value="${question.option_c}"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">選択肢 D</label>
+                        <input 
+                            type="text" 
+                            id="editAsyncOptionD" 
+                            value="${question.option_d}"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">正解</label>
+                        <select 
+                            id="editAsyncCorrectAnswer" 
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        >
+                            <option value="A" ${question.correct_answer === 'A' ? 'selected' : ''}>A</option>
+                            <option value="B" ${question.correct_answer === 'B' ? 'selected' : ''}>B</option>
+                            <option value="C" ${question.correct_answer === 'C' ? 'selected' : ''}>C</option>
+                            <option value="D" ${question.correct_answer === 'D' ? 'selected' : ''}>D</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">問題群 (0-9)</label>
+                        <input 
+                            type="number" 
+                            id="editAsyncPoolGroup" 
+                            value="${question.pool_group}"
+                            min="0"
+                            max="9"
+                            class="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                        />
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex gap-3 mt-6">
+                <button 
+                    onclick="updateAsyncQuestion(${questionId})"
+                    class="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition font-semibold"
+                >
+                    <i class="fas fa-save mr-2"></i>
+                    保存
+                </button>
+                <button 
+                    onclick="this.closest('.fixed').remove()"
+                    class="flex-1 bg-gray-500 text-white py-3 rounded-lg hover:bg-gray-600 transition font-semibold"
+                >
+                    キャンセル
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+// 問題更新
+async function updateAsyncQuestion(questionId) {
+    const questionText = document.getElementById('editAsyncQuestionText').value.trim();
+    const optionA = document.getElementById('editAsyncOptionA').value.trim();
+    const optionB = document.getElementById('editAsyncOptionB').value.trim();
+    const optionC = document.getElementById('editAsyncOptionC').value.trim();
+    const optionD = document.getElementById('editAsyncOptionD').value.trim();
+    const correctAnswer = document.getElementById('editAsyncCorrectAnswer').value;
+    const poolGroup = parseInt(document.getElementById('editAsyncPoolGroup').value);
+    
+    if (!questionText || !optionA || !optionB || !optionC || !optionD) {
+        alert('すべての項目を入力してください');
+        return;
+    }
+    
+    try {
+        await axios.put(`${ADMIN_API}/questions/${questionId}`, {
+            question_text: questionText,
+            option_a: optionA,
+            option_b: optionB,
+            option_c: optionC,
+            option_d: optionD,
+            correct_answer: correctAnswer,
+            pool_group: poolGroup
+        });
+        
+        alert('問題を更新しました！');
+        document.querySelector('.fixed').remove();
+        manageAsyncQuestions(currentAsyncEvent.id);
+        
+    } catch (error) {
+        alert('エラーが発生しました: ' + (error.response?.data?.error || error.message));
+    }
+}
+
+// 問題削除
+async function deleteAsyncQuestion(questionId) {
+    if (!confirm('この問題を削除しますか？')) {
+        return;
+    }
+    
+    try {
+        await axios.delete(`${ADMIN_API}/questions/${questionId}`);
+        alert('問題を削除しました');
+        manageAsyncQuestions(currentAsyncEvent.id);
+    } catch (error) {
+        alert('エラーが発生しました: ' + (error.response?.data?.error || error.message));
+    }
+}
+
+// 参加者一覧
+async function viewAsyncParticipants(eventId) {
+    try {
+        const response = await axios.get(`${ADMIN_API}/events/${eventId}/participants`);
+        const participants = response.data.participants || [];
+        
+        const contentArea = document.getElementById('content-area');
+        contentArea.innerHTML = `
+            <div class="max-w-5xl mx-auto">
+                <div class="mb-6">
+                    <button 
+                        onclick="renderAsyncQuizManagement()"
+                        class="text-indigo-600 hover:text-indigo-800 transition"
+                    >
+                        <i class="fas fa-arrow-left mr-2"></i>
+                        イベント一覧に戻る
+                    </button>
+                </div>
+                
+                <div class="bg-white rounded-2xl shadow-xl p-8">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">
+                        <i class="fas fa-users text-purple-500 mr-2"></i>
+                        参加者一覧
+                    </h2>
+                    
+                    ${participants.length > 0 ? `
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead>
+                                    <tr class="border-b-2 border-gray-200">
+                                        <th class="text-left p-3 font-semibold text-gray-700">ユーザーID</th>
+                                        <th class="text-left p-3 font-semibold text-gray-700">名前</th>
+                                        <th class="text-left p-3 font-semibold text-gray-700">チーム</th>
+                                        <th class="text-left p-3 font-semibold text-gray-700">スコア</th>
+                                        <th class="text-left p-3 font-semibold text-gray-700">回答時間</th>
+                                        <th class="text-left p-3 font-semibold text-gray-700">完了日時</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${participants.map(p => `
+                                        <tr class="border-b border-gray-100 hover:bg-gray-50">
+                                            <td class="p-3 font-mono text-sm">${p.user_id}</td>
+                                            <td class="p-3">${p.name || '-'}</td>
+                                            <td class="p-3">${p.team_name || '-'}</td>
+                                            <td class="p-3 font-bold ${p.score >= 7 ? 'text-green-600' : p.score >= 4 ? 'text-yellow-600' : 'text-red-600'}">${p.score}点</td>
+                                            <td class="p-3">${p.answer_duration}秒</td>
+                                            <td class="p-3 text-sm text-gray-500">${p.completed_at ? new Date(p.completed_at).toLocaleString('ja-JP') : '-'}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    ` : `
+                        <div class="text-center py-12">
+                            <i class="fas fa-users text-6xl text-gray-300 mb-4"></i>
+                            <p class="text-gray-600">まだ参加者がいません</p>
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
+    } catch (error) {
+        alert('エラーが発生しました: ' + (error.response?.data?.error || error.message));
+    }
+}
+
+// 統計表示
+async function viewAsyncStats(eventId) {
+    alert('統計機能は準備中です');
 }
