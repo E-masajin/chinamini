@@ -6,10 +6,12 @@ import gamificationApi from './gamification-api'
 import aiPredictionApi from './ai-prediction-api'
 import learningApi from './learning-api'
 import knowledgeApi from './knowledge-api'
+import secureApi from './secure-api'
 
 const app = new Hono()
 
-// APIルートをマウント
+// APIルートをマウント（セキュアAPIを優先）
+app.route('/', secureApi)
 app.route('/', api)
 app.route('/', analyticsApi)
 app.route('/', predictionApi)

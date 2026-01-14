@@ -2,6 +2,19 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import analyticsApi from './analytics-api'
 import aiApi from './ai-api'
+import { errorResponse, NotFoundError, ValidationError } from './utils/error-handler'
+import { 
+  validateUserId, 
+  validateEventId, 
+  validateAnswersArray,
+  validateRequiredString,
+  validateOptionalString,
+  validateDate,
+  validateInteger,
+  sanitizeString,
+  sanitizeOptionalString
+} from './utils/validators'
+import { findOne, findOneOrThrow, execute, safeQuery, getPoolGroup } from './utils/db-helpers'
 
 type Bindings = {
   DB: D1Database
@@ -15,57 +28,100 @@ const app = new Hono<{ Bindings: Bindings }>()
 app.use('/api/*', cors())
 app.use('/admin/api/*', cors())
 
-// ユーティリティ関数：IDから問題群を決定
-function getPoolGroup(userId: string): number {
-  const lastChar = userId.slice(-1)
-  const num = parseInt(lastChar, 10)
-  return isNaN(num) ? 0 : num
-}
+// グローバルエラーハンドラー
+app.onError((err, c) => {
+  console.error('[API Error]', err)
+  return errorResponse(c, err)
+})
 
 // ==================== 管理者API ====================
 
-// 管理者ログイン
+// 管理者ログイン（レガシー - 新規実装は secure-api.tsx の v2 を使用）
 app.post('/admin/api/login', async (c) => {
   const { DB } = c.env
-  const { username, password } = await c.req.json()
+  
+  try {
+    const body = await c.req.json()
+    const username = validateRequiredString(body.username, 'ユーザー名', 50)
+    const password = validateRequiredString(body.password, 'パスワード', 100)
 
-  const admin = await DB.prepare(`
-    SELECT id, username FROM admins 
-    WHERE username = ? AND password_hash = ?
-  `).bind(username, password).first()
+    // 後方互換性: password_saltがある場合はセキュアAPIを使用すべき
+    const admin = await findOne<any>(DB, `
+      SELECT id, username, password_salt FROM admins 
+      WHERE username = ? AND password_hash = ?
+    `, username, password)
 
-  if (!admin) {
-    return c.json({ error: '認証に失敗しました' }, 401)
+    if (!admin) {
+      // タイミング攻撃対策: 一定の遅延を入れる
+      await new Promise(resolve => setTimeout(resolve, 100))
+      return c.json({ error: '認証に失敗しました' }, 401)
+    }
+
+    // password_saltがある場合は警告を出す（セキュアAPIへの移行を促す）
+    const warning = admin.password_salt 
+      ? '新しい認証APIへの移行を推奨します（/admin/api/v2/login）' 
+      : undefined
+
+    return c.json({ 
+      success: true, 
+      admin: { id: admin.id, username: admin.username },
+      warning
+    })
+  } catch (error) {
+    return errorResponse(c, error)
   }
-
-  return c.json({ 
-    success: true, 
-    admin: { id: admin.id, username: admin.username }
-  })
 })
 
 // イベント一覧取得
 app.get('/admin/api/events', async (c) => {
   const { DB } = c.env
   
-  const events = await DB.prepare(`
-    SELECT * FROM events ORDER BY created_at DESC
-  `).all()
+  try {
+    const result = await safeQuery<any>(DB, `
+      SELECT * FROM events ORDER BY created_at DESC
+    `)
 
-  return c.json({ events: events.results })
+    return c.json({ events: result.results || [] })
+  } catch (error) {
+    return errorResponse(c, error)
+  }
 })
 
 // イベント作成
 app.post('/admin/api/events', async (c) => {
   const { DB } = c.env
-  const { name, description, start_date, end_date, questions_per_user, mode, min_participants } = await c.req.json()
+  
+  try {
+    const body = await c.req.json()
+    
+    // 入力検証
+    const name = sanitizeString(body.name, 'イベント名', 100)
+    const description = sanitizeOptionalString(body.description, '説明', 1000)
+    const start_date = validateDate(body.start_date, '開始日')
+    const end_date = validateDate(body.end_date, '終了日')
+    const questions_per_user = validateInteger(body.questions_per_user, '問題数', 1, 100)
+    const mode = validateRequiredString(body.mode, 'モード', 20)
+    const min_participants = validateInteger(body.min_participants || 1, '最小参加者数', 1, 1000)
 
-  const result = await DB.prepare(`
-    INSERT INTO events (name, description, start_date, end_date, questions_per_user, mode, min_participants, is_active)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-  `).bind(name, description, start_date, end_date, questions_per_user, mode, min_participants).run()
+    // 日付の整合性チェック
+    if (new Date(start_date) >= new Date(end_date)) {
+      throw new ValidationError('終了日は開始日より後の日付を設定してください', 'end_date')
+    }
 
-  return c.json({ success: true, eventId: result.meta.last_row_id })
+    // モードの検証
+    if (!['individual', 'team', 'company'].includes(mode)) {
+      throw new ValidationError('モードは individual, team, company のいずれかを選択してください', 'mode')
+    }
+
+    const result = await execute(DB, `
+      INSERT INTO events (name, description, start_date, end_date, questions_per_user, mode, min_participants, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+    `, name, description, start_date, end_date, questions_per_user, mode, min_participants)
+
+    return c.json({ success: true, eventId: result.lastRowId })
+  } catch (error) {
+    return errorResponse(c, error)
+  }
 })
 
 // イベント更新
@@ -309,72 +365,95 @@ app.get('/api/events/:eventId/questions', async (c) => {
 // 回答送信（回答時間記録）
 app.post('/api/events/:eventId/submit', async (c) => {
   const { DB } = c.env
-  const eventId = c.req.param('eventId')
-  const { userId, answers } = await c.req.json()
+  const eventIdParam = c.req.param('eventId')
+  
+  try {
+    const body = await c.req.json()
+    
+    // 入力検証
+    const eventId = validateEventId(eventIdParam)
+    const userId = validateUserId(body.userId)
+    const answers = validateAnswersArray(body.answers)
 
-  if (!userId || !answers || !Array.isArray(answers)) {
-    return c.json({ error: '不正なリクエストです' }, 400)
-  }
+    // すでに回答済みかチェック
+    const status = await findOne<any>(DB, `
+      SELECT has_completed, started_at
+      FROM user_event_status
+      WHERE user_id = ? AND event_id = ?
+    `, userId, eventId)
 
-  // すでに回答済みかチェック
-  const status: any = await DB.prepare(`
-    SELECT has_completed, started_at
-    FROM user_event_status
-    WHERE user_id = ? AND event_id = ?
-  `).bind(userId, eventId).first()
+    if (status && status.has_completed) {
+      return c.json({ error: 'すでに回答済みです' }, 403)
+    }
 
-  if (status && status.has_completed) {
-    return c.json({ error: 'すでに回答済みです' }, 403)
-  }
+    // 回答時間を計算（秒単位）
+    let answerDuration = 0
+    if (status && status.started_at) {
+      const startTime = new Date(status.started_at).getTime()
+      const endTime = Date.now()
+      answerDuration = Math.floor((endTime - startTime) / 1000)
+      
+      // 異常な回答時間（24時間以上）をチェック
+      if (answerDuration > 86400) {
+        console.warn(`[Warning] Abnormal answer duration: ${answerDuration}s for user ${userId}`)
+        answerDuration = 86400 // 最大24時間に制限
+      }
+    }
 
-  // 回答時間を計算（秒単位）
-  let answerDuration = 0
-  if (status && status.started_at) {
-    const startTime = new Date(status.started_at).getTime()
-    const endTime = Date.now()
-    answerDuration = Math.floor((endTime - startTime) / 1000)
-  }
+    // 回答を採点
+    let correctCount = 0
+    const results = []
+    const processedQuestionIds = new Set<number>()
 
-  // 回答を採点
-  let correctCount = 0
-  const results = []
+    for (const answer of answers) {
+      // 重複回答のチェック
+      if (processedQuestionIds.has(answer.questionId)) {
+        console.warn(`[Warning] Duplicate answer for question ${answer.questionId} by user ${userId}`)
+        continue
+      }
+      processedQuestionIds.add(answer.questionId)
 
-  for (const answer of answers) {
-    const question = await DB.prepare(`
-      SELECT correct_answer FROM questions WHERE id = ?
-    `).bind(answer.questionId).first()
+      const question = await findOne<any>(DB, `
+        SELECT correct_answer FROM questions WHERE id = ? AND event_id = ?
+      `, answer.questionId, eventId)
 
-    if (!question) continue
+      if (!question) {
+        console.warn(`[Warning] Question ${answer.questionId} not found for event ${eventId}`)
+        continue
+      }
 
-    const isCorrect = answer.userAnswer === question.correct_answer
-    if (isCorrect) correctCount++
+      const isCorrect = answer.userAnswer === question.correct_answer
+      if (isCorrect) correctCount++
 
-    await DB.prepare(`
-      INSERT INTO answers (user_id, event_id, question_id, user_answer, is_correct)
-      VALUES (?, ?, ?, ?, ?)
-    `).bind(userId, eventId, answer.questionId, answer.userAnswer, isCorrect ? 1 : 0).run()
+      await execute(DB, `
+        INSERT INTO answers (user_id, event_id, question_id, user_answer, is_correct)
+        VALUES (?, ?, ?, ?, ?)
+      `, userId, eventId, answer.questionId, answer.userAnswer, isCorrect ? 1 : 0)
 
-    results.push({
-      questionId: answer.questionId,
-      userAnswer: answer.userAnswer,
-      correctAnswer: question.correct_answer,
-      isCorrect
+      results.push({
+        questionId: answer.questionId,
+        userAnswer: answer.userAnswer,
+        correctAnswer: question.correct_answer,
+        isCorrect
+      })
+    }
+
+    // 参加状態を更新
+    await execute(DB, `
+      UPDATE user_event_status 
+      SET has_completed = 1, score = ?, completed_at = datetime('now'), answer_duration = ?
+      WHERE user_id = ? AND event_id = ?
+    `, correctCount, answerDuration, userId, eventId)
+
+    return c.json({
+      score: correctCount,
+      total: results.length,
+      answerDuration,
+      results
     })
+  } catch (error) {
+    return errorResponse(c, error)
   }
-
-  // 参加状態を更新
-  await DB.prepare(`
-    UPDATE user_event_status 
-    SET has_completed = 1, score = ?, completed_at = datetime('now'), answer_duration = ?
-    WHERE user_id = ? AND event_id = ?
-  `).bind(correctCount, answerDuration, userId, eventId).run()
-
-  return c.json({
-    score: correctCount,
-    total: answers.length,
-    answerDuration,
-    results
-  })
 })
 
 // 個人ランキング取得
