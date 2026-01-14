@@ -309,6 +309,35 @@ app.get('/admin/api/classification/stats', async (c) => {
   }
 })
 
+// GET /admin/api/knowledge/:id - ナレッジ詳細取得
+app.get('/admin/api/knowledge/:id', async (c) => {
+  try {
+    const { env } = c
+    const id = parseInt(c.req.param('id'))
+
+    if (isNaN(id)) {
+      return c.json({ success: false, error: 'Invalid knowledge ID' }, 400)
+    }
+
+    const knowledge = await env.DB.prepare(`
+      SELECT * FROM knowledge_base WHERE id = ?
+    `).bind(id).first()
+
+    if (!knowledge) {
+      return c.json({ success: false, error: 'Knowledge not found' }, 404)
+    }
+
+    return c.json({
+      success: true,
+      knowledge
+    })
+
+  } catch (error: any) {
+    console.error('Get knowledge detail error:', error)
+    return c.json({ success: false, error: error.message }, 500)
+  }
+})
+
 // GET /admin/api/knowledge-base/list - 知識ベース一覧
 app.get('/admin/api/knowledge-base/list', async (c) => {
   try {

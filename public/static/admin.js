@@ -3462,16 +3462,26 @@ async function renderAnalysisDemo() {
         
         contentArea.innerHTML = `
             <div class="max-w-7xl mx-auto">
-                <h2 class="text-3xl font-bold text-gray-800 mb-4">
-                    <i class="fas fa-lightbulb text-yellow-500 mr-3"></i>
-                    分析イメージ（プロトタイプデモ）
-                </h2>
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-3xl font-bold text-gray-800">
+                        <i class="fas fa-lightbulb text-yellow-500 mr-3"></i>
+                        分析イメージ（プロトタイプデモ）
+                    </h2>
+                    <button 
+                        onclick="runOrganizationAnalysis()"
+                        class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-lg hover:from-indigo-700 hover:to-purple-700 transition shadow-lg"
+                    >
+                        <i class="fas fa-brain mr-2"></i>
+                        組織全体をAI分析
+                    </button>
+                </div>
                 
                 <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-8">
                     <p class="text-yellow-800">
                         <i class="fas fa-info-circle mr-2"></i>
                         <strong>このページは仮説ベースのサンプルデータです。</strong>
                         クイズ回答結果から分析すると、このような情報が蓄積・活用できるイメージをお見せしています。
+                        各項目をクリックすると詳細が見られます。
                     </p>
                 </div>
                 
@@ -3632,19 +3642,20 @@ async function renderAnalysisDemo() {
                     
                     <div class="grid md:grid-cols-2 gap-4">
                         ${companyHistory.map(item => `
-                            <div class="bg-white rounded-xl shadow-md p-5">
+                            <div class="bg-white rounded-xl shadow-md p-5 hover:shadow-lg hover:border-amber-300 border-2 border-transparent transition cursor-pointer" onclick="showKnowledgeDetail(${item.id}, 'company_history')">
                                 <div class="flex items-center justify-between mb-3">
                                     <h5 class="font-bold text-gray-800">${item.title}</h5>
                                     <span class="text-xs px-2 py-1 rounded-full ${item.recognition_rate >= 70 ? 'bg-green-100 text-green-800' : item.recognition_rate >= 40 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}">
                                         認知率 ${item.recognition_rate}%
                                     </span>
                                 </div>
-                                <p class="text-sm text-gray-600 mb-3">${item.content || '内容が登録されていません'}</p>
-                                <div class="flex items-center text-xs text-gray-500">
-                                    <span class="mr-3">
+                                <p class="text-sm text-gray-600 mb-3 line-clamp-2">${item.content || '内容が登録されていません'}</p>
+                                <div class="flex items-center justify-between text-xs text-gray-500">
+                                    <span>
                                         <i class="fas fa-star text-yellow-400 mr-1"></i>
                                         価値スコア: ${item.value_score}/5
                                     </span>
+                                    <span class="text-amber-600"><i class="fas fa-arrow-right"></i> 詳細を見る</span>
                                 </div>
                             </div>
                         `).join('') || '<p class="text-gray-500 col-span-2 text-center py-8">社史データがありません</p>'}
@@ -3666,22 +3677,21 @@ async function renderAnalysisDemo() {
                     
                     <div class="grid md:grid-cols-2 gap-4">
                         ${knowledgeItems.map(item => `
-                            <div class="bg-white rounded-xl shadow-md p-5">
+                            <div class="bg-white rounded-xl shadow-md p-5 hover:shadow-lg hover:border-blue-300 border-2 border-transparent transition cursor-pointer" onclick="showKnowledgeDetail(${item.id}, 'knowledge')">
                                 <div class="flex items-center justify-between mb-3">
                                     <h5 class="font-bold text-gray-800">${item.title}</h5>
                                     <span class="text-xs px-2 py-1 rounded-full ${item.recognition_rate >= 70 ? 'bg-green-100 text-green-800' : item.recognition_rate >= 40 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}">
                                         正答率 ${item.recognition_rate}%
                                     </span>
                                 </div>
-                                <p class="text-sm text-gray-600 mb-3">${item.content || '内容が登録されていません'}</p>
-                                <div class="flex items-center text-xs text-gray-500">
-                                    <span class="mr-3">
+                                <p class="text-sm text-gray-600 mb-3 line-clamp-2">${item.content || '内容が登録されていません'}</p>
+                                <div class="flex items-center justify-between text-xs text-gray-500">
+                                    <span>
                                         <i class="fas fa-star text-yellow-400 mr-1"></i>
                                         重要度: ${item.value_score}/5
+                                        ${item.recognition_rate < 60 ? '<span class="text-red-600 font-semibold ml-2"><i class="fas fa-exclamation-triangle mr-1"></i>要周知</span>' : ''}
                                     </span>
-                                    <span class="${item.recognition_rate < 60 ? 'text-red-600 font-semibold' : ''}">
-                                        ${item.recognition_rate < 60 ? '<i class="fas fa-exclamation-triangle mr-1"></i>要周知' : ''}
-                                    </span>
+                                    <span class="text-blue-600"><i class="fas fa-arrow-right"></i> 詳細を見る</span>
                                 </div>
                             </div>
                         `).join('') || '<p class="text-gray-500 col-span-2 text-center py-8">ナレッジデータがありません</p>'}
@@ -3703,18 +3713,19 @@ async function renderAnalysisDemo() {
                     
                     <div class="grid md:grid-cols-2 gap-4">
                         ${complianceItems.map(item => `
-                            <div class="bg-white rounded-xl shadow-md p-5 border-l-4 ${item.recognition_rate >= 80 ? 'border-green-500' : item.recognition_rate >= 60 ? 'border-yellow-500' : 'border-red-500'}">
+                            <div class="bg-white rounded-xl shadow-md p-5 border-l-4 ${item.recognition_rate >= 80 ? 'border-green-500' : item.recognition_rate >= 60 ? 'border-yellow-500' : 'border-red-500'} hover:shadow-lg transition cursor-pointer" onclick="showKnowledgeDetail(${item.id}, 'compliance')">
                                 <div class="flex items-center justify-between mb-3">
                                     <h5 class="font-bold text-gray-800">${item.title}</h5>
                                     <span class="text-xs px-2 py-1 rounded-full ${item.recognition_rate >= 80 ? 'bg-green-100 text-green-800' : item.recognition_rate >= 60 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}">
                                         理解度 ${item.recognition_rate}%
                                     </span>
                                 </div>
-                                <p class="text-sm text-gray-600 mb-3">${item.content || '内容が登録されていません'}</p>
-                                <div class="flex items-center text-xs text-gray-500">
+                                <p class="text-sm text-gray-600 mb-3 line-clamp-2">${item.content || '内容が登録されていません'}</p>
+                                <div class="flex items-center justify-between text-xs text-gray-500">
                                     <span class="${item.recognition_rate < 80 ? 'text-red-600 font-semibold' : 'text-green-600'}">
                                         ${item.recognition_rate < 80 ? '<i class="fas fa-exclamation-circle mr-1"></i>研修推奨' : '<i class="fas fa-check-circle mr-1"></i>良好'}
                                     </span>
+                                    <span class="text-red-600"><i class="fas fa-arrow-right"></i> 詳細を見る</span>
                                 </div>
                             </div>
                         `).join('') || '<p class="text-gray-500 col-span-2 text-center py-8">コンプライアンスデータがありません</p>'}
@@ -3821,4 +3832,485 @@ async function showPersonDetail(personId) {
     } catch (error) {
         alert('詳細の取得に失敗しました: ' + error.message);
     }
+}
+
+// ==================== AI分析機能 ====================
+
+// 組織全体のAI分析を実行
+async function runOrganizationAnalysis() {
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto';
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    
+    modal.innerHTML = `
+        <div class="bg-white rounded-2xl p-8 max-w-4xl w-full mx-4 my-8 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-2xl font-bold text-gray-800">
+                    <i class="fas fa-brain text-indigo-600 mr-2"></i>
+                    組織分析レポート（AI生成デモ）
+                </h3>
+                <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
+            </div>
+            
+            <div id="ai-analysis-content">
+                <div class="text-center py-12">
+                    <i class="fas fa-spinner fa-spin text-6xl text-indigo-600 mb-4"></i>
+                    <p class="text-xl text-gray-600">AI分析を実行中...</p>
+                    <p class="text-sm text-gray-500 mt-2">蓄積されたデータから組織の傾向を分析しています</p>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // デモ用の遅延（実際はAPIコールに置き換え）
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // AI分析結果（デモ用のサンプル）
+    const analysisContent = document.getElementById('ai-analysis-content');
+    analysisContent.innerHTML = `
+        <div class="space-y-6">
+            <!-- サマリー -->
+            <div class="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-6">
+                <h4 class="font-bold text-lg text-gray-800 mb-4">
+                    <i class="fas fa-chart-pie text-indigo-600 mr-2"></i>
+                    エグゼクティブサマリー
+                </h4>
+                <p class="text-gray-700 leading-relaxed">
+                    組織全体の分析結果から、<strong>コミュニケーション活性化の余地</strong>が見られます。
+                    特にランチタイムを中心とした交流機会の創出が効果的と考えられます。
+                    また、業務知識の定着率に部署間で差があり、特に<strong>リモートワーク規定</strong>と
+                    <strong>備品購入フロー</strong>の周知強化が推奨されます。
+                </p>
+            </div>
+            
+            <!-- コミュニケーション傾向 -->
+            <div class="bg-white border-2 border-purple-200 rounded-xl p-6">
+                <h4 class="font-bold text-lg text-gray-800 mb-4">
+                    <i class="fas fa-users text-purple-600 mr-2"></i>
+                    コミュニケーション傾向分析
+                </h4>
+                <div class="grid md:grid-cols-2 gap-4 mb-4">
+                    <div class="bg-purple-50 p-4 rounded-lg">
+                        <div class="text-3xl font-bold text-purple-600 mb-1">68%</div>
+                        <div class="text-sm text-gray-600">ランチ関連の話題</div>
+                        <div class="text-xs text-gray-500 mt-1">食事の好みが最も把握しやすい</div>
+                    </div>
+                    <div class="bg-pink-50 p-4 rounded-lg">
+                        <div class="text-3xl font-bold text-pink-600 mb-1">24%</div>
+                        <div class="text-sm text-gray-600">趣味・休日の話題</div>
+                        <div class="text-xs text-gray-500 mt-1">登山、ヨガなどの共通趣味</div>
+                    </div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <p class="text-sm text-gray-700">
+                        <i class="fas fa-lightbulb text-yellow-500 mr-2"></i>
+                        <strong>AIの提案:</strong> 
+                        「ラーメン好き」「カレー好き」など食の好みが共通する社員同士のランチ会を企画すると、
+                        部署を超えた交流が生まれやすいでしょう。特に田中さん(営業部)と佐藤さん(開発部)は
+                        食への関心が高く、キーパーソンになりえます。
+                    </p>
+                </div>
+            </div>
+            
+            <!-- ナレッジ定着分析 -->
+            <div class="bg-white border-2 border-blue-200 rounded-xl p-6">
+                <h4 class="font-bold text-lg text-gray-800 mb-4">
+                    <i class="fas fa-book text-blue-600 mr-2"></i>
+                    ナレッジ定着度分析
+                </h4>
+                <div class="space-y-3">
+                    <div class="flex items-center">
+                        <span class="w-32 text-sm text-gray-600">経費精算</span>
+                        <div class="flex-1 bg-gray-200 rounded-full h-4 mx-3">
+                            <div class="bg-green-500 h-4 rounded-full" style="width: 92%"></div>
+                        </div>
+                        <span class="text-sm font-bold text-green-600">92%</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="w-32 text-sm text-gray-600">有給休暇</span>
+                        <div class="flex-1 bg-gray-200 rounded-full h-4 mx-3">
+                            <div class="bg-green-500 h-4 rounded-full" style="width: 88%"></div>
+                        </div>
+                        <span class="text-sm font-bold text-green-600">88%</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="w-32 text-sm text-gray-600">会議室予約</span>
+                        <div class="flex-1 bg-gray-200 rounded-full h-4 mx-3">
+                            <div class="bg-yellow-500 h-4 rounded-full" style="width: 75%"></div>
+                        </div>
+                        <span class="text-sm font-bold text-yellow-600">75%</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="w-32 text-sm text-gray-600">リモートワーク</span>
+                        <div class="flex-1 bg-gray-200 rounded-full h-4 mx-3">
+                            <div class="bg-yellow-500 h-4 rounded-full" style="width: 70%"></div>
+                        </div>
+                        <span class="text-sm font-bold text-yellow-600">70%</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="w-32 text-sm text-gray-600">備品購入</span>
+                        <div class="flex-1 bg-gray-200 rounded-full h-4 mx-3">
+                            <div class="bg-red-500 h-4 rounded-full" style="width: 60%"></div>
+                        </div>
+                        <span class="text-sm font-bold text-red-600">60%</span>
+                    </div>
+                </div>
+                <div class="bg-yellow-50 p-4 rounded-lg mt-4">
+                    <p class="text-sm text-gray-700">
+                        <i class="fas fa-exclamation-triangle text-yellow-500 mr-2"></i>
+                        <strong>要対応:</strong> 
+                        「備品購入フロー」「リモートワーク規定」の認知率が低めです。
+                        次回の全体ミーティングでの周知、またはSlackでの定期リマインドを推奨します。
+                    </p>
+                </div>
+            </div>
+            
+            <!-- 社史認知度 -->
+            <div class="bg-white border-2 border-amber-200 rounded-xl p-6">
+                <h4 class="font-bold text-lg text-gray-800 mb-4">
+                    <i class="fas fa-landmark text-amber-600 mr-2"></i>
+                    社史認知度分析
+                </h4>
+                <div class="grid md:grid-cols-3 gap-4 mb-4">
+                    <div class="text-center p-4 bg-green-50 rounded-lg">
+                        <div class="text-2xl font-bold text-green-600">82%</div>
+                        <div class="text-xs text-gray-600">社名の由来</div>
+                    </div>
+                    <div class="text-center p-4 bg-green-50 rounded-lg">
+                        <div class="text-2xl font-bold text-green-600">78%</div>
+                        <div class="text-xs text-gray-600">創業の原点</div>
+                    </div>
+                    <div class="text-center p-4 bg-yellow-50 rounded-lg">
+                        <div class="text-2xl font-bold text-yellow-600">65%</div>
+                        <div class="text-xs text-gray-600">上場への道のり</div>
+                    </div>
+                </div>
+                <p class="text-sm text-gray-600">
+                    <i class="fas fa-info-circle text-blue-500 mr-1"></i>
+                    新入社員の入社タイミングに合わせて社史クイズを実施すると、帰属意識の向上に効果的です。
+                </p>
+            </div>
+            
+            <!-- アクションプラン -->
+            <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6">
+                <h4 class="font-bold text-lg text-gray-800 mb-4">
+                    <i class="fas fa-tasks text-green-600 mr-2"></i>
+                    推奨アクションプラン
+                </h4>
+                <div class="space-y-3">
+                    <div class="flex items-start bg-white p-3 rounded-lg">
+                        <span class="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded mr-3">優先</span>
+                        <div>
+                            <p class="font-semibold text-gray-800">備品購入フローの再周知</p>
+                            <p class="text-sm text-gray-600">認知率60%は業務支障の可能性あり。動画マニュアル作成を推奨。</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start bg-white p-3 rounded-lg">
+                        <span class="bg-yellow-500 text-white text-xs font-bold px-2 py-1 rounded mr-3">推奨</span>
+                        <div>
+                            <p class="font-semibold text-gray-800">部署横断ランチ会の実施</p>
+                            <p class="text-sm text-gray-600">食の好みデータを活用し、月1回のシャッフルランチを企画。</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start bg-white p-3 rounded-lg">
+                        <span class="bg-blue-500 text-white text-xs font-bold px-2 py-1 rounded mr-3">検討</span>
+                        <div>
+                            <p class="font-semibold text-gray-800">趣味サークルの活性化支援</p>
+                            <p class="text-sm text-gray-600">朝ヨガ部、登山好きグループなど、共通趣味での交流促進。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-6 flex justify-end gap-3">
+            <button onclick="alert('PDF出力機能は準備中です')" class="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-300 transition">
+                <i class="fas fa-file-pdf mr-2"></i>
+                PDF出力
+            </button>
+            <button onclick="this.closest('.fixed').remove()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition">
+                閉じる
+            </button>
+        </div>
+    `;
+}
+
+// ナレッジ詳細表示
+async function showKnowledgeDetail(knowledgeId, category) {
+    // まずAPI呼び出し前にモーダルを表示
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto';
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    
+    modal.innerHTML = `
+        <div class="bg-white rounded-2xl p-8 max-w-3xl w-full mx-4 my-8">
+            <div class="text-center py-8">
+                <i class="fas fa-spinner fa-spin text-4xl text-indigo-600 mb-4"></i>
+                <p class="text-gray-600">読み込み中...</p>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    try {
+        const response = await axios.get(`${ADMIN_API}/knowledge/${knowledgeId}`);
+        const item = response.data.knowledge;
+        
+        // カテゴリ別の色とアイコン
+        const categoryConfig = {
+            company_history: { color: 'amber', icon: 'fa-landmark', label: '社史' },
+            knowledge: { color: 'blue', icon: 'fa-book', label: '業務ナレッジ' },
+            communication: { color: 'purple', icon: 'fa-users', label: 'コミュニケーション' },
+            compliance: { color: 'red', icon: 'fa-shield-alt', label: 'コンプライアンス' }
+        };
+        const config = categoryConfig[item.category] || categoryConfig.knowledge;
+        
+        modal.innerHTML = `
+            <div class="bg-white rounded-2xl p-8 max-w-3xl w-full mx-4 my-8 max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center">
+                        <div class="w-12 h-12 bg-${config.color}-100 rounded-full flex items-center justify-center mr-4">
+                            <i class="fas ${config.icon} text-${config.color}-600 text-xl"></i>
+                        </div>
+                        <div>
+                            <span class="text-xs bg-${config.color}-100 text-${config.color}-800 px-2 py-1 rounded">${config.label}</span>
+                            <h3 class="text-2xl font-bold text-gray-800 mt-1">${item.title}</h3>
+                        </div>
+                    </div>
+                    <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times text-2xl"></i>
+                    </button>
+                </div>
+                
+                <!-- 認知率バー -->
+                <div class="bg-gray-50 rounded-xl p-4 mb-6">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-sm font-semibold text-gray-700">認知率（正答率）</span>
+                        <span class="text-2xl font-bold ${item.recognition_rate >= 70 ? 'text-green-600' : item.recognition_rate >= 50 ? 'text-yellow-600' : 'text-red-600'}">${item.recognition_rate || 0}%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-4">
+                        <div class="h-4 rounded-full ${item.recognition_rate >= 70 ? 'bg-green-500' : item.recognition_rate >= 50 ? 'bg-yellow-500' : 'bg-red-500'}" style="width: ${item.recognition_rate || 0}%"></div>
+                    </div>
+                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>0%</span>
+                        <span>50%</span>
+                        <span>100%</span>
+                    </div>
+                </div>
+                
+                <!-- コンテンツ -->
+                <div class="mb-6">
+                    <h4 class="font-bold text-gray-700 mb-3">
+                        <i class="fas fa-align-left text-gray-400 mr-2"></i>
+                        内容
+                    </h4>
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <p class="text-gray-700 leading-relaxed whitespace-pre-wrap">${item.content}</p>
+                    </div>
+                </div>
+                
+                <!-- メタ情報 -->
+                <div class="grid md:grid-cols-3 gap-4 mb-6">
+                    <div class="bg-gray-50 p-3 rounded-lg text-center">
+                        <div class="text-xs text-gray-500 mb-1">重要度スコア</div>
+                        <div class="text-xl font-bold text-gray-800">
+                            ${'★'.repeat(item.value_score || 0)}${'☆'.repeat(5 - (item.value_score || 0))}
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg text-center">
+                        <div class="text-xs text-gray-500 mb-1">ステータス</div>
+                        <div class="text-sm font-semibold ${item.status === 'published' ? 'text-green-600' : 'text-gray-600'}">
+                            ${item.status === 'published' ? '公開中' : item.status === 'review' ? 'レビュー待ち' : '下書き'}
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg text-center">
+                        <div class="text-xs text-gray-500 mb-1">登録日</div>
+                        <div class="text-sm text-gray-700">${new Date(item.created_at).toLocaleDateString('ja-JP')}</div>
+                    </div>
+                </div>
+                
+                <!-- AI分析セクション -->
+                <div class="border-t pt-6">
+                    <h4 class="font-bold text-gray-700 mb-3">
+                        <i class="fas fa-robot text-indigo-500 mr-2"></i>
+                        AI分析・提案
+                    </h4>
+                    <div id="ai-knowledge-analysis-${knowledgeId}" class="bg-indigo-50 p-4 rounded-lg">
+                        <button onclick="runKnowledgeAIAnalysis(${knowledgeId}, '${item.title}', ${item.recognition_rate || 0})" class="w-full bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 transition">
+                            <i class="fas fa-magic mr-2"></i>
+                            このナレッジをAI分析
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+    } catch (error) {
+        modal.innerHTML = `
+            <div class="bg-white rounded-2xl p-8 max-w-3xl w-full mx-4">
+                <div class="text-center py-8">
+                    <i class="fas fa-exclamation-triangle text-red-500 text-4xl mb-4"></i>
+                    <p class="text-red-600">データの取得に失敗しました</p>
+                    <button onclick="this.closest('.fixed').remove()" class="mt-4 bg-gray-200 px-6 py-2 rounded-lg">閉じる</button>
+                </div>
+            </div>
+        `;
+    }
+}
+
+// ナレッジのAI分析
+async function runKnowledgeAIAnalysis(knowledgeId, title, recognitionRate) {
+    const container = document.getElementById(`ai-knowledge-analysis-${knowledgeId}`);
+    container.innerHTML = `
+        <div class="text-center py-4">
+            <i class="fas fa-spinner fa-spin text-2xl text-indigo-600 mb-2"></i>
+            <p class="text-sm text-gray-600">AI分析中...</p>
+        </div>
+    `;
+    
+    // デモ用の遅延
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // 認知率に応じた分析結果を生成
+    let analysis = '';
+    if (recognitionRate >= 80) {
+        analysis = `
+            <div class="space-y-3">
+                <div class="flex items-start">
+                    <span class="bg-green-500 text-white text-xs px-2 py-1 rounded mr-2">良好</span>
+                    <p class="text-sm text-gray-700">「${title}」は組織内で十分に認知されています。現状の周知方法が効果的です。</p>
+                </div>
+                <div class="bg-white p-3 rounded-lg">
+                    <p class="text-xs text-gray-600">
+                        <strong>💡 提案:</strong> この項目をベストプラクティスとして、他の低認知率項目の周知方法の参考にしてください。
+                        また、定期的なリマインドで認知率を維持することを推奨します。
+                    </p>
+                </div>
+            </div>
+        `;
+    } else if (recognitionRate >= 60) {
+        analysis = `
+            <div class="space-y-3">
+                <div class="flex items-start">
+                    <span class="bg-yellow-500 text-white text-xs px-2 py-1 rounded mr-2">要注意</span>
+                    <p class="text-sm text-gray-700">「${title}」の認知率は平均的ですが、改善の余地があります。</p>
+                </div>
+                <div class="bg-white p-3 rounded-lg">
+                    <p class="text-xs text-gray-600">
+                        <strong>💡 提案:</strong> 
+                        ① Slackでの定期リマインド（月1回）<br>
+                        ② 関連業務の発生タイミングでのポップアップ通知<br>
+                        ③ クイズ形式での再出題で記憶定着を促進
+                    </p>
+                </div>
+            </div>
+        `;
+    } else {
+        analysis = `
+            <div class="space-y-3">
+                <div class="flex items-start">
+                    <span class="bg-red-500 text-white text-xs px-2 py-1 rounded mr-2">要対応</span>
+                    <p class="text-sm text-gray-700">「${title}」の認知率が低く、業務に支障が出る可能性があります。</p>
+                </div>
+                <div class="bg-white p-3 rounded-lg">
+                    <p class="text-xs text-gray-600">
+                        <strong>💡 緊急提案:</strong> 
+                        ① 全体ミーティングでの説明（次回推奨）<br>
+                        ② 動画マニュアルの作成と共有<br>
+                        ③ FAQ形式でのまとめ資料配布<br>
+                        ④ 部署ごとの担当者を設けてフォローアップ
+                    </p>
+                </div>
+                <div class="bg-red-50 p-3 rounded-lg border border-red-200">
+                    <p class="text-xs text-red-700">
+                        <i class="fas fa-exclamation-triangle mr-1"></i>
+                        <strong>リスク:</strong> この項目の低認知は、業務ミスや非効率につながる可能性があります。
+                        早急な対応を推奨します。
+                    </p>
+                </div>
+            </div>
+        `;
+    }
+    
+    container.innerHTML = analysis;
+}
+
+// 人物のAI分析
+async function runPersonAIAnalysis(personId, personName) {
+    const container = document.getElementById(`ai-person-analysis-${personId}`);
+    if (!container) return;
+    
+    container.innerHTML = `
+        <div class="text-center py-4">
+            <i class="fas fa-spinner fa-spin text-2xl text-purple-600 mb-2"></i>
+            <p class="text-sm text-gray-600">${personName}さんのデータを分析中...</p>
+        </div>
+    `;
+    
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    // デモ用の分析結果（実際はAPIで生成）
+    const analyses = {
+        '田中': `
+            <div class="space-y-3">
+                <div class="bg-purple-100 p-3 rounded-lg">
+                    <p class="font-semibold text-purple-800 mb-1">🍜 グルメ志向タイプ</p>
+                    <p class="text-sm text-gray-700">食への関心が高く、特にラーメンへのこだわりが見られます。ランチタイムの会話のきっかけとして効果的です。</p>
+                </div>
+                <div class="bg-white p-3 rounded-lg border">
+                    <p class="text-sm text-gray-600">
+                        <strong>コミュニケーション戦略:</strong><br>
+                        ・ランチのお誘いが効果的（12:30頃がベスト）<br>
+                        ・新しいラーメン店の情報共有で関係構築<br>
+                        ・グルメ系のSlackチャンネルへの招待推奨
+                    </p>
+                </div>
+            </div>
+        `,
+        '山田': `
+            <div class="space-y-3">
+                <div class="bg-green-100 p-3 rounded-lg">
+                    <p class="font-semibold text-green-800 mb-1">🏔️ アクティブ派リーダー</p>
+                    <p class="text-sm text-gray-700">早起き習慣と登山趣味から、規律正しく行動力のあるタイプ。部下との1on1を重視する姿勢あり。</p>
+                </div>
+                <div class="bg-white p-3 rounded-lg border">
+                    <p class="text-sm text-gray-600">
+                        <strong>コミュニケーション戦略:</strong><br>
+                        ・朝の時間帯（7:00-8:00）が話しやすい<br>
+                        ・アウトドア系の話題で親近感UP<br>
+                        ・結論から話す簡潔なコミュニケーションを好む傾向
+                    </p>
+                </div>
+            </div>
+        `,
+        '佐藤': `
+            <div class="space-y-3">
+                <div class="bg-blue-100 p-3 rounded-lg">
+                    <p class="font-semibold text-blue-800 mb-1">💻 テクノロジー×グルメ</p>
+                    <p class="text-sm text-gray-700">技術への探究心が高く、カレーへの情熱も。知識共有に積極的で、勉強会の主催者。</p>
+                </div>
+                <div class="bg-white p-3 rounded-lg border">
+                    <p class="text-sm text-gray-600">
+                        <strong>コミュニケーション戦略:</strong><br>
+                        ・技術的な質問は歓迎される傾向<br>
+                        ・勉強会への参加で関係構築<br>
+                        ・カレー屋の情報交換も効果的
+                    </p>
+                </div>
+            </div>
+        `
+    };
+    
+    container.innerHTML = analyses[personName] || `
+        <div class="bg-gray-100 p-3 rounded-lg">
+            <p class="text-sm text-gray-600">
+                <i class="fas fa-info-circle mr-1"></i>
+                データが蓄積されると、AIが傾向を分析して最適なコミュニケーション方法を提案します。
+            </p>
+        </div>
+    `;
 }
