@@ -147,6 +147,13 @@ function showMainLayout() {
                             <i class="fas fa-file-import mr-2"></i>
                             情報インプット
                         </button>
+                        <button 
+                            onclick="switchView('analysis')"
+                            class="nav-tab ${currentView === 'analysis' ? 'active' : ''}"
+                        >
+                            <i class="fas fa-lightbulb mr-2"></i>
+                            分析イメージ
+                        </button>
                     </div>
                 </div>
             </div>
@@ -225,6 +232,9 @@ async function renderView() {
             break;
         case 'import':
             await renderKnowledgeImport();
+            break;
+        case 'analysis':
+            await renderAnalysisDemo();
             break;
     }
 }
@@ -840,7 +850,7 @@ async function renderKnowledgeManagement() {
         // カテゴリ別に分類
         const companyHistory = knowledgeList.filter(k => k.category === 'company_history');
         const knowledge = knowledgeList.filter(k => k.category === 'knowledge');
-        const communication = knowledgeList.filter(k => k.category === 'people' || k.category === 'compliance');
+        const communication = knowledgeList.filter(k => k.category === 'communication' || k.category === 'people' || k.category === 'compliance');
         
         contentArea.innerHTML = `
             <div class="max-w-7xl mx-auto">
@@ -3424,4 +3434,391 @@ async function viewAsyncParticipants(eventId) {
 // 統計表示
 async function viewAsyncStats(eventId) {
     alert('統計機能は準備中です');
+}
+
+// ==================== 分析イメージデモ画面 ====================
+
+async function renderAnalysisDemo() {
+    const contentArea = document.getElementById('content-area');
+    contentArea.innerHTML = '<div class="text-center py-8"><i class="fas fa-spinner fa-spin text-4xl text-indigo-600"></i></div>';
+    
+    try {
+        // コミュニケーション情報とナレッジを取得
+        const [personsResponse, knowledgeResponse, conversationResponse] = await Promise.all([
+            axios.get('/api/communication/persons'),
+            axios.get(`${ADMIN_API}/knowledge`),
+            axios.get('/api/communication/conversation-starters')
+        ]);
+        
+        const persons = personsResponse.data.persons || [];
+        const knowledge = knowledgeResponse.data.knowledge || [];
+        const conversationStarters = conversationResponse.data.starters || [];
+        
+        // カテゴリごとにナレッジを分類
+        const companyHistory = knowledge.filter(k => k.category === 'company_history');
+        const knowledgeItems = knowledge.filter(k => k.category === 'knowledge');
+        const communicationItems = knowledge.filter(k => k.category === 'communication');
+        const complianceItems = knowledge.filter(k => k.category === 'compliance');
+        
+        contentArea.innerHTML = `
+            <div class="max-w-7xl mx-auto">
+                <h2 class="text-3xl font-bold text-gray-800 mb-4">
+                    <i class="fas fa-lightbulb text-yellow-500 mr-3"></i>
+                    分析イメージ（プロトタイプデモ）
+                </h2>
+                
+                <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-8">
+                    <p class="text-yellow-800">
+                        <i class="fas fa-info-circle mr-2"></i>
+                        <strong>このページは仮説ベースのサンプルデータです。</strong>
+                        クイズ回答結果から分析すると、このような情報が蓄積・活用できるイメージをお見せしています。
+                    </p>
+                </div>
+                
+                <!-- タブナビゲーション -->
+                <div class="flex space-x-2 mb-6 border-b border-gray-200 pb-2">
+                    <button onclick="showAnalysisTab('communication')" class="analysis-tab active px-4 py-2 rounded-t-lg bg-purple-100 text-purple-800 font-semibold">
+                        <i class="fas fa-users mr-2"></i>コミュニケーション情報
+                    </button>
+                    <button onclick="showAnalysisTab('history')" class="analysis-tab px-4 py-2 rounded-t-lg hover:bg-gray-100">
+                        <i class="fas fa-landmark mr-2"></i>社史
+                    </button>
+                    <button onclick="showAnalysisTab('knowledge')" class="analysis-tab px-4 py-2 rounded-t-lg hover:bg-gray-100">
+                        <i class="fas fa-book mr-2"></i>ナレッジ
+                    </button>
+                    <button onclick="showAnalysisTab('compliance')" class="analysis-tab px-4 py-2 rounded-t-lg hover:bg-gray-100">
+                        <i class="fas fa-shield-alt mr-2"></i>コンプライアンス
+                    </button>
+                </div>
+                
+                <!-- コミュニケーション情報タブ -->
+                <div id="tab-communication" class="analysis-content">
+                    <div class="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 mb-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">
+                            <i class="fas fa-magic text-purple-600 mr-2"></i>
+                            クイズ結果から見えてくるもの
+                        </h3>
+                        <p class="text-gray-700 mb-4">
+                            「田中君は何を食べるでしょう？」→ 正解は「ラーメン」<br>
+                            このようなクイズの答え合わせを繰り返すことで、以下のような情報が自動的に蓄積されます：
+                        </p>
+                        <div class="grid md:grid-cols-3 gap-4">
+                            <div class="bg-white p-4 rounded-lg shadow-sm">
+                                <div class="text-4xl font-bold text-purple-600 mb-2">${persons.length}</div>
+                                <div class="text-sm text-gray-600">人物プロフィール</div>
+                            </div>
+                            <div class="bg-white p-4 rounded-lg shadow-sm">
+                                <div class="text-4xl font-bold text-pink-600 mb-2">${conversationStarters.length}+</div>
+                                <div class="text-sm text-gray-600">会話のきっかけ</div>
+                            </div>
+                            <div class="bg-white p-4 rounded-lg shadow-sm">
+                                <div class="text-4xl font-bold text-indigo-600 mb-2">∞</div>
+                                <div class="text-sm text-gray-600">コミュニケーション促進</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 人物プロフィール一覧 -->
+                    <h4 class="text-lg font-bold text-gray-800 mb-4">
+                        <i class="fas fa-user-circle text-purple-600 mr-2"></i>
+                        蓄積された人物プロフィール
+                    </h4>
+                    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+                        ${persons.map(person => `
+                            <div class="bg-white rounded-xl shadow-md p-5 hover:shadow-lg transition cursor-pointer" onclick="showPersonDetail(${person.id})">
+                                <div class="flex items-center mb-3">
+                                    <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold text-xl">
+                                        ${person.name.charAt(0)}
+                                    </div>
+                                    <div class="ml-3">
+                                        <h5 class="font-bold text-gray-800">${person.name}さん</h5>
+                                        <p class="text-sm text-gray-500">${person.department}</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center text-sm text-gray-600">
+                                    <span class="mr-4">
+                                        <i class="fas fa-tag text-purple-400 mr-1"></i>
+                                        特性 ${person.trait_count}件
+                                    </span>
+                                    <span>
+                                        <i class="fas fa-lightbulb text-yellow-400 mr-1"></i>
+                                        洞察 ${person.insight_count}件
+                                    </span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    
+                    <!-- 会話のきっかけ提案 -->
+                    <h4 class="text-lg font-bold text-gray-800 mb-4">
+                        <i class="fas fa-comments text-pink-600 mr-2"></i>
+                        会話のきっかけ提案（自動生成）
+                    </h4>
+                    <div class="bg-white rounded-xl shadow-md p-6 mb-8">
+                        <p class="text-gray-600 mb-4">
+                            蓄積されたプロフィール情報から、AIが会話のきっかけを提案します。
+                            「この人と話したいけど何を話せばいいかわからない」という場面で活用できます。
+                        </p>
+                        <div class="space-y-4">
+                            ${conversationStarters.slice(0, 5).map(starter => `
+                                <div class="border-l-4 border-purple-500 pl-4 py-2 bg-purple-50 rounded-r-lg">
+                                    <div class="flex items-center mb-2">
+                                        <span class="bg-purple-600 text-white px-2 py-1 rounded text-sm font-semibold mr-2">
+                                            ${starter.personName}さんへ
+                                        </span>
+                                        <span class="text-xs text-gray-500">${starter.topic}</span>
+                                    </div>
+                                    <p class="text-gray-800 font-medium">"${starter.suggestedOpener}"</p>
+                                    <p class="text-xs text-gray-500 mt-1">
+                                        <i class="fas fa-info-circle mr-1"></i>
+                                        ${starter.description}
+                                    </p>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    
+                    <!-- データ蓄積の仕組み説明 -->
+                    <div class="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-6">
+                        <h4 class="text-lg font-bold text-gray-800 mb-4">
+                            <i class="fas fa-database text-indigo-600 mr-2"></i>
+                            データ蓄積の仕組み
+                        </h4>
+                        <div class="grid md:grid-cols-4 gap-4">
+                            <div class="bg-white p-4 rounded-lg text-center">
+                                <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                                    <i class="fas fa-question text-blue-600 text-xl"></i>
+                                </div>
+                                <p class="font-semibold text-sm">1. クイズ出題</p>
+                                <p class="text-xs text-gray-500">「田中君のランチは？」</p>
+                            </div>
+                            <div class="bg-white p-4 rounded-lg text-center">
+                                <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                                    <i class="fas fa-check text-green-600 text-xl"></i>
+                                </div>
+                                <p class="font-semibold text-sm">2. 答え合わせ</p>
+                                <p class="text-xs text-gray-500">正解「ラーメン」を登録</p>
+                            </div>
+                            <div class="bg-white p-4 rounded-lg text-center">
+                                <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                                    <i class="fas fa-layer-group text-purple-600 text-xl"></i>
+                                </div>
+                                <p class="font-semibold text-sm">3. 特性蓄積</p>
+                                <p class="text-xs text-gray-500">田中+ランチ+ラーメン</p>
+                            </div>
+                            <div class="bg-white p-4 rounded-lg text-center">
+                                <div class="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                                    <i class="fas fa-lightbulb text-yellow-600 text-xl"></i>
+                                </div>
+                                <p class="font-semibold text-sm">4. 洞察生成</p>
+                                <p class="text-xs text-gray-500">「ラーメン好き」を自動認識</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 社史タブ -->
+                <div id="tab-history" class="analysis-content hidden">
+                    <div class="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-6 mb-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">
+                            <i class="fas fa-landmark text-amber-600 mr-2"></i>
+                            社史・会社の歴史
+                        </h3>
+                        <p class="text-gray-700">
+                            クイズを通じて社員が会社の歴史を学び、認知度を測定できます。
+                            どの項目が知られていないかを可視化し、社内教育に活用できます。
+                        </p>
+                    </div>
+                    
+                    <div class="grid md:grid-cols-2 gap-4">
+                        ${companyHistory.map(item => `
+                            <div class="bg-white rounded-xl shadow-md p-5">
+                                <div class="flex items-center justify-between mb-3">
+                                    <h5 class="font-bold text-gray-800">${item.title}</h5>
+                                    <span class="text-xs px-2 py-1 rounded-full ${item.recognition_rate >= 70 ? 'bg-green-100 text-green-800' : item.recognition_rate >= 40 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}">
+                                        認知率 ${item.recognition_rate}%
+                                    </span>
+                                </div>
+                                <p class="text-sm text-gray-600 mb-3">${item.content || '内容が登録されていません'}</p>
+                                <div class="flex items-center text-xs text-gray-500">
+                                    <span class="mr-3">
+                                        <i class="fas fa-star text-yellow-400 mr-1"></i>
+                                        価値スコア: ${item.value_score}/5
+                                    </span>
+                                </div>
+                            </div>
+                        `).join('') || '<p class="text-gray-500 col-span-2 text-center py-8">社史データがありません</p>'}
+                    </div>
+                </div>
+                
+                <!-- ナレッジタブ -->
+                <div id="tab-knowledge" class="analysis-content hidden">
+                    <div class="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl p-6 mb-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">
+                            <i class="fas fa-book text-blue-600 mr-2"></i>
+                            業務ナレッジ
+                        </h3>
+                        <p class="text-gray-700">
+                            社内ルール、業務手順、システムの使い方など、業務に必要な知識をクイズ化。
+                            正答率から「周知が必要な項目」を特定できます。
+                        </p>
+                    </div>
+                    
+                    <div class="grid md:grid-cols-2 gap-4">
+                        ${knowledgeItems.map(item => `
+                            <div class="bg-white rounded-xl shadow-md p-5">
+                                <div class="flex items-center justify-between mb-3">
+                                    <h5 class="font-bold text-gray-800">${item.title}</h5>
+                                    <span class="text-xs px-2 py-1 rounded-full ${item.recognition_rate >= 70 ? 'bg-green-100 text-green-800' : item.recognition_rate >= 40 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}">
+                                        正答率 ${item.recognition_rate}%
+                                    </span>
+                                </div>
+                                <p class="text-sm text-gray-600 mb-3">${item.content || '内容が登録されていません'}</p>
+                                <div class="flex items-center text-xs text-gray-500">
+                                    <span class="mr-3">
+                                        <i class="fas fa-star text-yellow-400 mr-1"></i>
+                                        重要度: ${item.value_score}/5
+                                    </span>
+                                    <span class="${item.recognition_rate < 60 ? 'text-red-600 font-semibold' : ''}">
+                                        ${item.recognition_rate < 60 ? '<i class="fas fa-exclamation-triangle mr-1"></i>要周知' : ''}
+                                    </span>
+                                </div>
+                            </div>
+                        `).join('') || '<p class="text-gray-500 col-span-2 text-center py-8">ナレッジデータがありません</p>'}
+                    </div>
+                </div>
+                
+                <!-- コンプライアンスタブ -->
+                <div id="tab-compliance" class="analysis-content hidden">
+                    <div class="bg-gradient-to-r from-red-50 to-pink-50 rounded-xl p-6 mb-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">
+                            <i class="fas fa-shield-alt text-red-600 mr-2"></i>
+                            コンプライアンス
+                        </h3>
+                        <p class="text-gray-700">
+                            セキュリティ、個人情報保護、社内規則など、コンプライアンスに関する知識の定着度を測定。
+                            低い項目は研修などの対策が必要です。
+                        </p>
+                    </div>
+                    
+                    <div class="grid md:grid-cols-2 gap-4">
+                        ${complianceItems.map(item => `
+                            <div class="bg-white rounded-xl shadow-md p-5 border-l-4 ${item.recognition_rate >= 80 ? 'border-green-500' : item.recognition_rate >= 60 ? 'border-yellow-500' : 'border-red-500'}">
+                                <div class="flex items-center justify-between mb-3">
+                                    <h5 class="font-bold text-gray-800">${item.title}</h5>
+                                    <span class="text-xs px-2 py-1 rounded-full ${item.recognition_rate >= 80 ? 'bg-green-100 text-green-800' : item.recognition_rate >= 60 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}">
+                                        理解度 ${item.recognition_rate}%
+                                    </span>
+                                </div>
+                                <p class="text-sm text-gray-600 mb-3">${item.content || '内容が登録されていません'}</p>
+                                <div class="flex items-center text-xs text-gray-500">
+                                    <span class="${item.recognition_rate < 80 ? 'text-red-600 font-semibold' : 'text-green-600'}">
+                                        ${item.recognition_rate < 80 ? '<i class="fas fa-exclamation-circle mr-1"></i>研修推奨' : '<i class="fas fa-check-circle mr-1"></i>良好'}
+                                    </span>
+                                </div>
+                            </div>
+                        `).join('') || '<p class="text-gray-500 col-span-2 text-center py-8">コンプライアンスデータがありません</p>'}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+    } catch (error) {
+        contentArea.innerHTML = `
+            <div class="bg-red-50 p-6 rounded-xl text-center">
+                <i class="fas fa-exclamation-triangle text-red-600 text-4xl mb-4"></i>
+                <p class="text-red-800">データの取得に失敗しました: ${error.message}</p>
+            </div>
+        `;
+    }
+}
+
+// 分析タブ切り替え
+function showAnalysisTab(tabName) {
+    // すべてのタブコンテンツを非表示
+    document.querySelectorAll('.analysis-content').forEach(el => el.classList.add('hidden'));
+    // すべてのタブボタンを非アクティブ
+    document.querySelectorAll('.analysis-tab').forEach(el => {
+        el.classList.remove('active', 'bg-purple-100', 'text-purple-800', 'font-semibold');
+    });
+    
+    // 選択されたタブを表示
+    document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+    
+    // ボタンをアクティブに
+    event.target.classList.add('active', 'bg-purple-100', 'text-purple-800', 'font-semibold');
+}
+
+// 人物詳細表示
+async function showPersonDetail(personId) {
+    try {
+        const response = await axios.get(`/api/communication/persons/${personId}`);
+        const person = response.data;
+        
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto';
+        modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+        
+        modal.innerHTML = `
+            <div class="bg-white rounded-2xl p-8 max-w-2xl w-full mx-4 my-8">
+                <div class="flex items-center mb-6">
+                    <div class="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold text-2xl">
+                        ${person.profile.name.charAt(0)}
+                    </div>
+                    <div class="ml-4">
+                        <h3 class="text-2xl font-bold text-gray-800">${person.profile.name}さん</h3>
+                        <p class="text-gray-500">${person.profile.department}</p>
+                    </div>
+                    <button onclick="this.closest('.fixed').remove()" class="ml-auto text-gray-400 hover:text-gray-600">
+                        <i class="fas fa-times text-2xl"></i>
+                    </button>
+                </div>
+                
+                ${person.traits && person.traits.length > 0 ? `
+                    <div class="mb-6">
+                        <h4 class="font-bold text-gray-700 mb-3">
+                            <i class="fas fa-tags text-purple-500 mr-2"></i>
+                            蓄積された特性
+                        </h4>
+                        <div class="flex flex-wrap gap-2">
+                            ${person.traits.map(trait => `
+                                <span class="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm">
+                                    ${trait.category}: ${trait.value}
+                                    <span class="text-xs text-purple-500 ml-1">(${trait.occurrence_count}回)</span>
+                                </span>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+                
+                ${person.insights && person.insights.length > 0 ? `
+                    <div>
+                        <h4 class="font-bold text-gray-700 mb-3">
+                            <i class="fas fa-lightbulb text-yellow-500 mr-2"></i>
+                            洞察・会話のヒント
+                        </h4>
+                        <div class="space-y-3">
+                            ${person.insights.map(insight => `
+                                <div class="bg-yellow-50 p-4 rounded-lg">
+                                    <div class="font-semibold text-gray-800 mb-1">${insight.title}</div>
+                                    <p class="text-sm text-gray-600 mb-2">${insight.description}</p>
+                                    ${insight.conversation_hints ? `
+                                        <div class="text-xs text-gray-500">
+                                            <strong>会話例:</strong>
+                                            ${JSON.parse(insight.conversation_hints).map(hint => `"${hint}"`).join(', ')}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+    } catch (error) {
+        alert('詳細の取得に失敗しました: ' + error.message);
+    }
 }
